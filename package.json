@@ -9,9 +9,11 @@
   "dependencies": {
     "@hono/node-server": "^1.19.6",
     "better-auth": "^1.3.34",
+    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
     "hono": "^4.10.4",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
@@ -21,3 +23,4 @@
     "typescript": "^5.8.3"
   }
 }
+
