@@ -173,21 +173,21 @@ export function CommandPalette({
       <Box flexDirection="column" marginTop={1}>
         {!isCommandMode ? (
           <Box flexDirection="column" paddingX={1} rowGap={0}>
-            <Text dimColor>💡 Press "/" to search available commands</Text>
+            <Text dimColor>[Tip] Press "/" to search available commands</Text>
             {showHelp && (
               <Box marginTop={1} flexDirection="column">
                 <Text dimColor bold>
                   Keyboard shortcuts:
                 </Text>
-                <Text dimColor> ↑/↓ Navigate commands</Text>
-                <Text dimColor> ⏎ Select command</Text>
-                <Text dimColor> ⎋ Clear input</Text>
+                <Text dimColor> Up/Down: Navigate commands</Text>
+                <Text dimColor> Enter: Select command</Text>
+                <Text dimColor> Esc: Clear input</Text>
               </Box>
             )}
           </Box>
         ) : filtered.length === 0 ? (
           <Box paddingX={1}>
-            <Text color="yellow">⚠ {emptyLabel}</Text>
+            <Text color="yellow">[Warning] {emptyLabel}</Text>
           </Box>
         ) : (
           <Box
@@ -209,7 +209,7 @@ export function CommandPalette({
                 >
                   <Box minWidth={2}>
                     <Text color={isActive ? "cyan" : "transparent"}>
-                      {isActive ? "▶" : " "}
+                      {isActive ? ">" : " "}
                     </Text>
                   </Box>
                   <Box minWidth={20}>
@@ -251,7 +251,7 @@ export function CommandPalette({
         <Box paddingX={1} marginTop={1}>
           <Text dimColor>
             {filtered.length} {filtered.length === 1 ? "command" : "commands"} •
-            Use ↑↓ to navigate • ⏎ to select
+            Use Up/Down to navigate • Enter to select
           </Text>
         </Box>
       )}

@@ -82,6 +82,16 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
           } else if (field === "password" || (email && password)) {
             handleSubmit();
           }
+        } else if (key.tab || key.rightArrow) {
+          // Navigate forward: email -> password
+          if (field === "email") {
+            setField("password");
+          }
+        } else if (key.leftArrow) {
+          // Navigate backward: password -> email
+          if (field === "password") {
+            setField("email");
+          }
         }
       },
       [state, field, email, password, onCancel, handleSubmit],
@@ -103,21 +113,21 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
         ) : (
           <Text dimColor>{password ? "••••••••" : ""}</Text>
         )}
-        {state === "submitting" && <Text dimColor>⏳</Text>}
+        {state === "submitting" && <Text dimColor>[Loading...]</Text>}
       </Box>
       {state === "error" && errorMessage && (
         <Box paddingX={2}>
-          <Text color="red">❌ {errorMessage}</Text>
+          <Text color="red">[Error] {errorMessage}</Text>
         </Box>
       )}
       {state === "success" && (
         <Box paddingX={2}>
-          <Text color="green">✓ Login successful!</Text>
+          <Text color="green">[Success] Login successful!</Text>
         </Box>
       )}
       {state === "editing" && (
         <Box paddingX={2}>
-          <Text dimColor>Enter: Next/Submit • Esc: Cancel</Text>
+          <Text dimColor>Tab/Arrows: Navigate • Enter: Next/Submit • Esc: Cancel</Text>
         </Box>
       )}
     </Box>

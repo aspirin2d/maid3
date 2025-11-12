@@ -10,6 +10,23 @@
 
 ---
 
+## Coding Style Guidelines
+
+### General Rules
+
+1. **No Emojis in Code**: Never use emojis in source code, UI text, or user-facing messages. Use plain text alternatives instead:
+   - ✓ → [Success] or [OK]
+   - ❌ → [Error] or [Failed]
+   - ⚠ → [Warning]
+   - 💡 → [Tip] or [Note]
+   - ⏳ → [Loading...] or [Processing...]
+
+   **Rationale:** Emojis can cause rendering issues in terminals, may not be accessible to screen readers, and can look unprofessional in production applications.
+
+2. **Keyboard Navigation**: All interactive CLI components should support both arrow keys and Tab for navigation to improve accessibility and user experience.
+
+---
+
 ## Project Architecture
 
 ### Technology Stack
