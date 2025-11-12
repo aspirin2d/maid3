@@ -10,7 +10,7 @@ import {
   type SessionData,
 } from "./session.js";
 
-function Header({ url }: { url: string }) {
+function Header({ url, email }: { url: string; email?: string }) {
   return (
     <Box
       flexDirection="row"
@@ -24,6 +24,7 @@ function Header({ url }: { url: string }) {
         Maid CLI
       </Text>
       <Text dimColor>{url}</Text>
+      {email && <Text>{email}</Text>}
     </Box>
   );
 }
@@ -172,22 +173,10 @@ export default function App({ url }: { url: string }) {
 
   return (
     <Box flexDirection="column" rowGap={1}>
-      <Header url={url} />
-
-      {/* Show session info if logged in */}
-      {sessionData && (
-        <Box
-          paddingX={2}
-          paddingY={1}
-          borderStyle="round"
-          borderColor="green"
-          alignSelf="flex-start"
-        >
-          <Text color="green">
-            [Authenticated] {sessionData.user.name || sessionData.user.email}
-          </Text>
-        </Box>
-      )}
+      <Header
+        url={url}
+        email={sessionData ? sessionData.user.email : undefined}
+      />
 
       {/* Render current view */}
       {currentView === "palette" && (
