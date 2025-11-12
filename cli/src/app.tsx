@@ -176,7 +176,7 @@ export default function App({ url }: { url: string }) {
           alignSelf="flex-start"
         >
           <Text color="green">
-            ✓ Authenticated as {sessionData.user.name || sessionData.user.email}
+            [Authenticated] {sessionData.user.name || sessionData.user.email}
           </Text>
         </Box>
       )}
