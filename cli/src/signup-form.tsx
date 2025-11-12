@@ -8,6 +8,7 @@ export type SignupFormProps = {
   apiUrl: string;
   onSuccess?: (data: SessionData) => void;
   isActive?: boolean;
+  onDismiss?: () => void;
 };
 
 type FormState = "editing" | "submitting" | "success" | "error";
@@ -16,6 +17,7 @@ export function SignupForm({
   apiUrl,
   onSuccess,
   isActive = true,
+  onDismiss,
 }: SignupFormProps) {
   const addView = useAddView();
   const [name, setName] = useState("");
@@ -71,6 +73,7 @@ export function SignupForm({
         sessionData.user.email || sessionData.user.name || sessionData.user.id;
       addView({ kind: "text", message: `Signup successful: ${label}` });
       addView({ kind: "palette" });
+      onDismiss?.();
     } catch (error) {
       setState("error");
       setErrorMessage(
@@ -80,7 +83,7 @@ export function SignupForm({
         setState("editing");
       }, 2000);
     }
-  }, [addView, apiUrl, name, email, password, onSuccess]);
+  }, [addView, apiUrl, name, email, password, onSuccess, onDismiss]);
 
   useInput(
     useCallback(
@@ -88,6 +91,7 @@ export function SignupForm({
         if (state !== "editing") return;
         if (key.escape) {
           addView({ kind: "palette" });
+          onDismiss?.();
         } else if (key.return) {
           if (field === "name" && name) {
             setField("email");
@@ -112,7 +116,7 @@ export function SignupForm({
           }
         }
       },
-      [addView, state, field, name, email, password, handleSubmit],
+      [addView, state, field, name, email, password, handleSubmit, onDismiss],
     ),
     { isActive },
   );

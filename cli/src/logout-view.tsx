@@ -5,9 +5,10 @@ import { useAddView } from "./view-context.js";
 
 type LogoutViewProps = {
   onLoggedOut?: () => void;
+  onDismiss?: () => void;
 };
 
-export function LogoutView({ onLoggedOut }: LogoutViewProps) {
+export function LogoutView({ onLoggedOut, onDismiss }: LogoutViewProps) {
   const addView = useAddView();
   const hasLoggedOutRef = useRef(false);
 
@@ -22,8 +23,9 @@ export function LogoutView({ onLoggedOut }: LogoutViewProps) {
       onLoggedOut?.();
       addView({ kind: "text", message: "Logged out successfully" });
       addView({ kind: "palette" });
+      onDismiss?.();
     })();
-  }, [addView, onLoggedOut]);
+  }, [addView, onLoggedOut, onDismiss]);
 
   return (
     <Box

@@ -12,6 +12,7 @@ import { SignupForm } from "./signup-form.js";
 import { AddViewProvider } from "./view-context.js";
 import type { ViewInstance, ViewPayload } from "./view-types.js";
 import { LogoutView } from "./logout-view.js";
+import { HelpView } from "./help-view.js";
 
 function Header({ url, email }: { url: string; email?: string }) {
   return (
@@ -108,13 +109,25 @@ export default function App({ url }: { url: string }) {
   }, [sessionData]);
 
   const addView = useCallback((view: ViewPayload) => {
-    setViews((current) => [
-      ...current,
-      {
-        ...view,
-        id: nextViewId.current++,
-      },
-    ]);
+    setViews((current) => {
+      const id = nextViewId.current;
+      nextViewId.current += 1;
+      const viewWithId: ViewInstance = { ...view, id } as ViewInstance;
+      let nextViews: ViewInstance[] = [...current, viewWithId];
+
+      if (view.kind === "palette") {
+        nextViews = nextViews.filter(
+          (candidate) =>
+            candidate.kind !== "palette" || candidate.id === viewWithId.id,
+        );
+      }
+
+      return nextViews;
+    });
+  }, []);
+
+  const removeView = useCallback((id: number) => {
+    setViews((current) => current.filter((view) => view.id !== id));
   }, []);
 
   const addTextView = useCallback(
@@ -139,10 +152,15 @@ export default function App({ url }: { url: string }) {
           case "/signup":
             addView({ kind: "signup" });
             break;
-          case "/help":
-            // TODO: Implement help view
-            addTextView("Help command - coming soon!");
+          case "/help": {
+            const snapshot = commands.map((command) => ({ ...command }));
+            addView({
+              kind: "help",
+              commands: snapshot,
+              sessionEmail: sessionData?.user.email,
+            });
             break;
+          }
           case "/quit":
             process.exit(0);
           default:
@@ -154,7 +172,7 @@ export default function App({ url }: { url: string }) {
       // Custom input (not a predefined command)
       addTextView(`Custom input: ${selection.value}`);
     },
-    [addTextView, addView],
+    [addTextView, addView, commands, sessionData],
   );
 
   const handleLoginSuccess = useCallback(
@@ -180,7 +198,12 @@ export default function App({ url }: { url: string }) {
         continue;
       }
       const kind = view.kind;
-      if (kind === "palette" || kind === "login" || kind === "signup") {
+      if (
+        kind === "palette" ||
+        kind === "login" ||
+        kind === "signup" ||
+        kind === "help"
+      ) {
         return i;
       }
     }
@@ -227,6 +250,7 @@ export default function App({ url }: { url: string }) {
                   apiUrl={url}
                   onSuccess={handleLoginSuccess}
                   isActive={isActive}
+                  onDismiss={() => removeView(view.id)}
                 />
               );
             case "signup":
@@ -236,6 +260,7 @@ export default function App({ url }: { url: string }) {
                   apiUrl={url}
                   onSuccess={handleSignupSuccess}
                   isActive={isActive}
+                  onDismiss={() => removeView(view.id)}
                 />
               );
             case "logout":
@@ -243,6 +268,17 @@ export default function App({ url }: { url: string }) {
                 <LogoutView
                   key={view.id}
                   onLoggedOut={() => setSessionData(null)}
+                  onDismiss={() => removeView(view.id)}
+                />
+              );
+            case "help":
+              return (
+                <HelpView
+                  key={view.id}
+                  commands={view.commands}
+                  sessionEmail={view.sessionEmail}
+                  isActive={isActive}
+                  onDismiss={() => removeView(view.id)}
                 />
               );
             case "text":

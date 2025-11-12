@@ -8,6 +8,7 @@ export type LoginFormProps = {
   apiUrl: string;
   onSuccess?: (data: SessionData) => void;
   isActive?: boolean;
+  onDismiss?: () => void;
 };
 
 type FormState = "editing" | "submitting" | "success" | "error";
@@ -16,6 +17,7 @@ export function LoginForm({
   apiUrl,
   onSuccess,
   isActive = true,
+  onDismiss,
 }: LoginFormProps) {
   const addView = useAddView();
   const [email, setEmail] = useState("");
@@ -59,7 +61,8 @@ export function LoginForm({
           name: data.user?.name,
           role: data.user?.role,
         },
-        expiresAt: data.session?.expiresAt || Date.now() + 7 * 24 * 60 * 60 * 1000,
+        expiresAt:
+          data.session?.expiresAt || Date.now() + 7 * 24 * 60 * 60 * 1000,
       };
 
       await saveSession(sessionData);
@@ -68,6 +71,7 @@ export function LoginForm({
       const label = sessionData.user.email || sessionData.user.name || "User";
       addView({ kind: "text", message: `Login successful: ${label}` });
       addView({ kind: "palette" });
+      onDismiss?.();
     } catch (error) {
       setState("error");
       setErrorMessage(
@@ -77,7 +81,7 @@ export function LoginForm({
         setState("editing");
       }, 2000);
     }
-  }, [addView, apiUrl, email, password, onSuccess]);
+  }, [addView, apiUrl, email, password, onSuccess, onDismiss]);
 
   useInput(
     useCallback(
@@ -85,6 +89,7 @@ export function LoginForm({
         if (state !== "editing") return;
         if (key.escape) {
           addView({ kind: "palette" });
+          onDismiss?.();
         } else if (key.return) {
           if (field === "email" && email) {
             setField("password");
@@ -103,7 +108,7 @@ export function LoginForm({
           }
         }
       },
-      [addView, state, field, email, password, handleSubmit],
+      [addView, state, field, email, password, handleSubmit, onDismiss],
     ),
     { isActive },
   );
@@ -140,14 +145,11 @@ export function LoginForm({
           <Text color="red">[Error] {errorMessage}</Text>
         </Box>
       )}
-      {state === "success" && (
-        <Box paddingX={2}>
-          <Text color="green">[Success] Login successful!</Text>
-        </Box>
-      )}
       {state === "editing" && (
         <Box paddingX={2}>
-          <Text dimColor>Tab/Arrows: Navigate • Enter: Next/Submit • Esc: Cancel</Text>
+          <Text dimColor>
+            Tab/Arrows: Navigate • Enter: Next/Submit • Esc: Cancel
+          </Text>
         </Box>
       )}
     </Box>

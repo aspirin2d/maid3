@@ -11,7 +11,7 @@ const cli = meow(
 		--url  API base url
 
 	Examples
-	  $ cli --url=http://localhost:3000/api/v1
+	  $ cli --url=http://localhost:3000/api
 `,
   {
     importMeta: import.meta,
@@ -27,7 +27,7 @@ const cli = meow(
 
 (async () => {
   try {
-    const url = cli.flags.url.replace(/\/+$/, '');
+    const url = cli.flags.url.replace(/\/+$/, "");
     const { waitUntilExit } = render(<App url={url} />);
     await waitUntilExit();
   } catch (e) {
