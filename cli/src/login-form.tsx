@@ -10,60 +10,13 @@ export type LoginFormProps = {
 };
 
 type FormState = "editing" | "submitting" | "success" | "error";
-type FocusedField = "email" | "password" | "submit";
 
 export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [focusedField, setFocusedField] = useState<FocusedField>("email");
+  const [field, setField] = useState<"email" | "password">("email");
   const [state, setState] = useState<FormState>("editing");
   const [errorMessage, setErrorMessage] = useState("");
-
-  // Handle keyboard navigation
-  useInput(
-    useCallback(
-      (_input, key) => {
-        if (state !== "editing") return;
-
-        // Tab to move forward through fields
-        if (key.tab && !key.shift) {
-          if (focusedField === "email") {
-            setFocusedField("password");
-          } else if (focusedField === "password") {
-            setFocusedField("submit");
-          } else {
-            setFocusedField("email");
-          }
-          return;
-        }
-
-        // Shift+Tab to move backward through fields
-        if (key.tab && key.shift) {
-          if (focusedField === "email") {
-            setFocusedField("submit");
-          } else if (focusedField === "password") {
-            setFocusedField("email");
-          } else {
-            setFocusedField("password");
-          }
-          return;
-        }
-
-        // Escape to cancel
-        if (key.escape) {
-          onCancel?.();
-          return;
-        }
-
-        // Enter on submit button
-        if (key.return && focusedField === "submit") {
-          handleSubmit();
-          return;
-        }
-      },
-      [focusedField, state, onCancel],
-    ),
-  );
 
   const handleSubmit = useCallback(async () => {
     if (!email || !password) {
@@ -92,7 +45,6 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
         throw new Error(data.error || data.message || "Login failed");
       }
 
-      // Extract session data and save to file
       const sessionData: SessionData = {
         token: data.session?.token || data.token,
         user: {
@@ -101,13 +53,10 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
           name: data.user?.name,
           role: data.user?.role,
         },
-        // Default to 7 days from now if no expiry provided
         expiresAt: data.session?.expiresAt || Date.now() + 7 * 24 * 60 * 60 * 1000,
       };
 
-      // Save session to file
       await saveSession(sessionData);
-
       setState("success");
       onSuccess?.(sessionData);
     } catch (error) {
@@ -115,129 +64,60 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
       setErrorMessage(
         error instanceof Error ? error.message : "An unknown error occurred",
       );
-      // Reset to editing state after a delay
       setTimeout(() => {
         setState("editing");
       }, 2000);
     }
   }, [apiUrl, email, password, onSuccess]);
 
-  // Auto-submit when pressing Enter on password field
-  const handlePasswordSubmit = useCallback(() => {
-    handleSubmit();
-  }, [handleSubmit]);
+  useInput(
+    useCallback(
+      (_input, key) => {
+        if (state !== "editing") return;
+        if (key.escape) {
+          onCancel?.();
+        } else if (key.return) {
+          if (field === "email" && email) {
+            setField("password");
+          } else if (field === "password" || (email && password)) {
+            handleSubmit();
+          }
+        }
+      },
+      [state, field, email, password, onCancel, handleSubmit],
+    ),
+  );
 
   return (
     <Box flexDirection="column" rowGap={1}>
-      {/* Header */}
-      <Box
-        borderStyle="round"
-        borderColor="blue"
-        paddingX={2}
-        paddingY={1}
-        flexDirection="column"
-      >
-        <Text bold color="blue">
-          🔐 Login to Maid
-        </Text>
-        <Text dimColor>Enter your credentials to authenticate</Text>
+      <Box flexDirection="row" paddingX={2} columnGap={2}>
+        <Text>Email:</Text>
+        {field === "email" ? (
+          <TextInput value={email} onChange={setEmail} placeholder="user@example.com" />
+        ) : (
+          <Text color="cyan">{email}</Text>
+        )}
+        <Text>Password:</Text>
+        {field === "password" ? (
+          <TextInput value={password} onChange={setPassword} mask="•" />
+        ) : (
+          <Text dimColor>{password ? "••••••••" : ""}</Text>
+        )}
+        {state === "submitting" && <Text dimColor>⏳</Text>}
       </Box>
-
-      {/* Form Fields */}
-      <Box flexDirection="column" paddingX={2} rowGap={1}>
-        {/* Email Field */}
-        <Box flexDirection="column">
-          <Text
-            bold={focusedField === "email"}
-            color={focusedField === "email" ? "cyan" : "white"}
-          >
-            Email:
-          </Text>
-          <Box
-            paddingX={1}
-            borderStyle="single"
-            borderColor={focusedField === "email" ? "cyan" : "gray"}
-          >
-            {focusedField === "email" ? (
-              <TextInput
-                value={email}
-                onChange={setEmail}
-                placeholder="user@example.com"
-              />
-            ) : (
-              <Text dimColor={!email}>{email || "user@example.com"}</Text>
-            )}
-          </Box>
-        </Box>
-
-        {/* Password Field */}
-        <Box flexDirection="column">
-          <Text
-            bold={focusedField === "password"}
-            color={focusedField === "password" ? "cyan" : "white"}
-          >
-            Password:
-          </Text>
-          <Box
-            paddingX={1}
-            borderStyle="single"
-            borderColor={focusedField === "password" ? "cyan" : "gray"}
-          >
-            {focusedField === "password" ? (
-              <TextInput
-                value={password}
-                onChange={setPassword}
-                placeholder="••••••••"
-                mask="•"
-                onSubmit={handlePasswordSubmit}
-              />
-            ) : (
-              <Text dimColor={!password}>
-                {password ? "••••••••" : "••••••••"}
-              </Text>
-            )}
-          </Box>
-        </Box>
-
-        {/* Submit Button */}
-        <Box marginTop={1}>
-          <Box
-            paddingX={2}
-            paddingY={0}
-            borderStyle="round"
-            borderColor={focusedField === "submit" ? "green" : "gray"}
-            backgroundColor={focusedField === "submit" ? "#1a1a1a" : undefined}
-          >
-            <Text
-              bold={focusedField === "submit"}
-              color={focusedField === "submit" ? "green" : "white"}
-            >
-              {state === "submitting" ? "⏳ Logging in..." : "✓ Login"}
-            </Text>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Status Messages */}
       {state === "error" && errorMessage && (
         <Box paddingX={2}>
           <Text color="red">❌ {errorMessage}</Text>
         </Box>
       )}
-
       {state === "success" && (
         <Box paddingX={2}>
           <Text color="green">✓ Login successful!</Text>
         </Box>
       )}
-
-      {/* Footer with help */}
       {state === "editing" && (
-        <Box paddingX={2} marginTop={1}>
-          <Text dimColor>
-            Tab: Next field • Shift+Tab: Previous field • Enter: Submit • Esc:
-            Cancel
-          </Text>
+        <Box paddingX={2}>
+          <Text dimColor>Enter: Next/Submit • Esc: Cancel</Text>
         </Box>
       )}
     </Box>
