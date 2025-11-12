@@ -2,10 +2,9 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { auth } from "./auth.js";
 import { initializeDefaultAdmin } from "./admin.js";
+import { auth } from "./auth.js";
 import { env } from "./env.js";
-import { apiRateLimit, authRateLimit } from "./middleware/rateLimit.js";
 
 const app = new Hono<{
   Variables: {
@@ -67,13 +66,7 @@ app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Rate limiting for authentication endpoints (stricter)
-app.use("/api/auth/sign-in/*", authRateLimit);
-app.use("/api/auth/sign-up/*", authRateLimit);
-
-// General API rate limiting
-app.use("/api/*", apiRateLimit);
-
+// Auth api
 app.use("/api/*", async (c, next) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) {
@@ -99,9 +92,8 @@ const server = serve(
     port: env.PORT,
   },
   (info) => {
-    console.log(`✓ Server is running on http://localhost:${info.port}`);
-    console.log(`✓ Environment: ${env.NODE_ENV}`);
-    console.log(`✓ Health check: http://localhost:${info.port}/health`);
+    console.log(`Server is running on http://localhost:${info.port}`);
+    console.log(`Environment: ${env.NODE_ENV}`);
   },
 );
 
@@ -111,13 +103,13 @@ const gracefulShutdown = (signal: string) => {
 
   // Close server
   server.close(() => {
-    console.log("✓ Server closed");
+    console.log("Server closed");
     process.exit(0);
   });
 
   // Force shutdown after 10 seconds
   setTimeout(() => {
-    console.error("✗ Forced shutdown after timeout");
+    console.error("Forced shutdown after timeout");
     process.exit(1);
   }, 10000);
 };

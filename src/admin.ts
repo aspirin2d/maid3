@@ -38,18 +38,16 @@ export async function initializeDefaultAdmin() {
           `Updated existing user ${env.DEFAULT_ADMIN_EMAIL} to admin role`,
         );
       } else {
-        console.log(
-          `Default admin user ${env.DEFAULT_ADMIN_EMAIL} already exists`,
-        );
+        // console.log(
+        //   `Default admin user ${env.DEFAULT_ADMIN_EMAIL} already exists`,
+        // );
       }
 
       return adminUser.id;
     }
 
     // Create new admin user using Better Auth internal API
-    console.log(
-      `Creating default admin user: ${env.DEFAULT_ADMIN_EMAIL}`,
-    );
+    console.log(`Creating default admin user: ${env.DEFAULT_ADMIN_EMAIL}`);
 
     const newUser = await auth.api.signUpEmail({
       body: {

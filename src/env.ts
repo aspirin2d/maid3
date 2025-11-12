@@ -26,7 +26,9 @@ function getPort(): number {
 
   const port = parseInt(portStr, 10);
   if (isNaN(port) || port < 1 || port > 65535) {
-    throw new Error(`PORT must be a valid number between 1 and 65535, got: ${portStr}`);
+    throw new Error(
+      `PORT must be a valid number between 1 and 65535, got: ${portStr}`,
+    );
   }
 
   return port;
@@ -63,11 +65,3 @@ export const env = {
   isDevelopment: getNodeEnv() === "development",
   isTest: getNodeEnv() === "test",
 } as const;
-
-// Log configuration (excluding sensitive data)
-console.log("Environment configuration loaded:");
-console.log(`- NODE_ENV: ${env.NODE_ENV}`);
-console.log(`- PORT: ${env.PORT}`);
-console.log(`- BASE_URL: ${env.BASE_URL}`);
-console.log(`- DB_URL: ${env.DB_URL ? "✓ configured" : "✗ missing"}`);
-console.log(`- Default admin: ${env.DEFAULT_ADMIN_EMAIL ? "✓ configured" : "✗ not configured"}`);
