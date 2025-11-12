@@ -27,7 +27,8 @@ const cli = meow(
 
 (async () => {
   try {
-    const { waitUntilExit } = render(<App url={cli.flags.url} />);
+    const url = cli.flags.url.replace(/\/+$/, '');
+    const { waitUntilExit } = render(<App url={url} />);
     await waitUntilExit();
   } catch (e) {
     console.error(e); // not reached
