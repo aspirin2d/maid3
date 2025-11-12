@@ -1,10 +1,11 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useState, useCallback } from "react";
+import { saveSession, type SessionData } from "./session.js";
 
 export type LoginFormProps = {
   apiUrl: string;
-  onSuccess?: (data: { session: unknown; user: unknown }) => void;
+  onSuccess?: (data: SessionData) => void;
   onCancel?: () => void;
 };
 
@@ -91,8 +92,24 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
         throw new Error(data.error || data.message || "Login failed");
       }
 
+      // Extract session data and save to file
+      const sessionData: SessionData = {
+        token: data.session?.token || data.token,
+        user: {
+          id: data.user?.id || "",
+          email: data.user?.email || email,
+          name: data.user?.name,
+          role: data.user?.role,
+        },
+        // Default to 7 days from now if no expiry provided
+        expiresAt: data.session?.expiresAt || Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      // Save session to file
+      await saveSession(sessionData);
+
       setState("success");
-      onSuccess?.(data);
+      onSuccess?.(sessionData);
     } catch (error) {
       setState("error");
       setErrorMessage(

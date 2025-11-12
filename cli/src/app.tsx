@@ -1,7 +1,13 @@
 import { Box, Text } from "ink";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { CommandPalette, CommandPaletteSelection } from "./command-palette.js";
 import { LoginForm } from "./login-form.js";
+import {
+  loadSession,
+  clearSession,
+  verifySession,
+  type SessionData,
+} from "./session.js";
 
 function Header({ url }: { url: string }) {
   return (
@@ -25,25 +31,61 @@ type View = "palette" | "login" | "signup";
 
 export default function App({ url }: { url: string }) {
   const [currentView, setCurrentView] = useState<View>("palette");
-  const [sessionData, setSessionData] = useState<{
-    session: unknown;
-    user: unknown;
-  } | null>(null);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
 
-  const commands = useMemo(
-    () => [
-      {
-        id: "/login",
-        label: "/login",
-        description: "Authenticate with your Maid account",
-        category: "Auth",
-      },
-      {
-        id: "/signup",
-        label: "/signup",
-        description: "Create a new Maid account",
-        category: "Auth",
-      },
+  // Load and verify session on mount
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const session = await loadSession();
+        if (session) {
+          // Verify session with API
+          const { valid } = await verifySession(url, session.token);
+          if (valid) {
+            setSessionData(session);
+          } else {
+            // Session invalid, clear it
+            await clearSession();
+          }
+        }
+      } catch (error) {
+        console.error("Failed to initialize session:", error);
+      } finally {
+        setIsLoadingSession(false);
+      }
+    };
+
+    initSession();
+  }, [url]);
+
+  const commands = useMemo(() => {
+    const authCommands = sessionData
+      ? [
+          {
+            id: "/logout",
+            label: "/logout",
+            description: "Sign out of your account",
+            category: "Auth",
+          },
+        ]
+      : [
+          {
+            id: "/login",
+            label: "/login",
+            description: "Authenticate with your Maid account",
+            category: "Auth",
+          },
+          {
+            id: "/signup",
+            label: "/signup",
+            description: "Create a new Maid account",
+            category: "Auth",
+          },
+        ];
+
+    return [
+      ...authCommands,
       {
         id: "/help",
         label: "/help",
@@ -56,18 +98,22 @@ export default function App({ url }: { url: string }) {
         description: "Exit the application",
         category: "General",
       },
-    ],
-    [],
-  );
+    ];
+  }, [sessionData]);
 
   const handlePaletteSubmit = useCallback(
-    (selection: CommandPaletteSelection) => {
+    async (selection: CommandPaletteSelection) => {
       if (selection.type === "known") {
         const commandId = selection.command.id;
 
         switch (commandId) {
           case "/login":
             setCurrentView("login");
+            break;
+          case "/logout":
+            await clearSession();
+            setSessionData(null);
+            console.log("Logged out successfully");
             break;
           case "/signup":
             setCurrentView("signup");
@@ -91,21 +137,30 @@ export default function App({ url }: { url: string }) {
     [],
   );
 
-  const handleLoginSuccess = useCallback(
-    (data: { session: unknown; user: unknown }) => {
-      setSessionData(data);
-      console.log("Login successful!", data);
-      // Return to command palette
-      setTimeout(() => {
-        setCurrentView("palette");
-      }, 2000);
-    },
-    [],
-  );
+  const handleLoginSuccess = useCallback((data: SessionData) => {
+    setSessionData(data);
+    console.log("Login successful!", data.user);
+    // Return to command palette
+    setTimeout(() => {
+      setCurrentView("palette");
+    }, 2000);
+  }, []);
 
   const handleLoginCancel = useCallback(() => {
     setCurrentView("palette");
   }, []);
+
+  // Show loading state while verifying session
+  if (isLoadingSession) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Header url={url} />
+        <Box paddingX={2}>
+          <Text dimColor>Loading session...</Text>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" rowGap={1}>
@@ -120,7 +175,9 @@ export default function App({ url }: { url: string }) {
           borderColor="green"
           alignSelf="flex-start"
         >
-          <Text color="green">✓ Authenticated</Text>
+          <Text color="green">
+            ✓ Authenticated as {sessionData.user.name || sessionData.user.email}
+          </Text>
         </Box>
       )}
 
