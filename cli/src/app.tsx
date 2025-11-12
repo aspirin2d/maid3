@@ -27,11 +27,55 @@ export default function App({ url }: { url: string }) {
         id: "/login",
         label: "/login",
         description: "Authenticate with your Maid account",
+        category: "Auth",
+        shortcut: "⌘L",
       },
       {
         id: "/signup",
         label: "/signup",
         description: "Create a new Maid account",
+        category: "Auth",
+        shortcut: "⌘S",
+      },
+      {
+        id: "/logout",
+        label: "/logout",
+        description: "Sign out of your account",
+        category: "Auth",
+      },
+      {
+        id: "/story/new",
+        label: "/story/new",
+        description: "Create a new conversation story",
+        category: "Story",
+        shortcut: "⌘N",
+      },
+      {
+        id: "/story/list",
+        label: "/story/list",
+        description: "List all your stories",
+        category: "Story",
+      },
+      {
+        id: "/memory/search",
+        label: "/memory/search",
+        description: "Search through your memories",
+        category: "Memory",
+        shortcut: "⌘F",
+      },
+      {
+        id: "/help",
+        label: "/help",
+        description: "Show help and documentation",
+        category: "General",
+        shortcut: "?",
+      },
+      {
+        id: "/quit",
+        label: "/quit",
+        description: "Exit the application",
+        category: "General",
+        shortcut: "⌘Q",
       },
     ],
     [],
@@ -40,14 +84,19 @@ export default function App({ url }: { url: string }) {
   const handlePaletteSubmit = useCallback(
     (selection: CommandPaletteSelection) => {
       if (selection.type === "known") {
+        // TODO: Implement command handlers
+        console.log("Command selected:", selection.command.id);
         return;
       }
+
+      // Custom input (not a predefined command)
+      console.log("Custom input:", selection.value);
     },
     [],
   );
 
   return (
-    <Box flexDirection="column" columnGap={1}>
+    <Box flexDirection="column" rowGap={1}>
       <Header url={url} />
       <CommandPalette options={commands} onSubmit={handlePaletteSubmit} />
     </Box>
