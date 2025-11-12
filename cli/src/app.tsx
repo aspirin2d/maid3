@@ -1,304 +1,36 @@
-import { Box, Text } from "ink";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CommandPalette, CommandPaletteSelection } from "./command-palette.js";
-import { LoginForm } from "./login-form.js";
-import {
-  clearSession,
-  loadSession,
-  verifySession,
-  type SessionData,
-} from "./session.js";
-import { SignupForm } from "./signup-form.js";
-import { AddViewProvider } from "./view-context.js";
-import type { ViewInstance, ViewPayload } from "./view-types.js";
-import { LogoutView } from "./logout-view.js";
-import { HelpView } from "./help-view.js";
-
-function Header({ url, email }: { url: string; email?: string }) {
-  return (
-    <Box
-      flexDirection="row"
-      borderStyle="round"
-      borderColor="green"
-      paddingX={1}
-      columnGap={2}
-      alignSelf="flex-start"
-    >
-      <Text color="green" bold>
-        Maid CLI
-      </Text>
-      <Text dimColor>{url}</Text>
-      {email && <Text>{email}</Text>}
-    </Box>
-  );
-}
+import { Text } from "ink";
+import { useCallback, useState } from "react";
+import { type View, viewContext } from "./context.js";
+import Commander from "./commander.js";
 
 export default function App({ url }: { url: string }) {
-  const [sessionData, setSessionData] = useState<SessionData | null>(null);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const nextViewId = useRef(1);
-  const [views, setViews] = useState<ViewInstance[]>([
-    { id: 0, kind: "palette" },
+  const [views, setViews] = useState<View[]>([
+    { kind: "commander", option: { url: url } },
   ]);
 
-  // Load and verify session on mount
-  useEffect(() => {
-    const initSession = async () => {
-      try {
-        const session = await loadSession();
-        if (session) {
-          // Verify session with API
-          const { valid } = await verifySession(url, session.token);
-          if (valid) {
-            setSessionData(session);
-          } else {
-            // Session invalid, clear it
-            await clearSession();
-          }
-        }
-      } catch (error) {
-        console.error("Failed to initialize session:", error);
-      } finally {
-        setIsLoadingSession(false);
-      }
-    };
-
-    initSession();
-  }, [url]);
-
-  const commands = useMemo(() => {
-    const authCommands = sessionData
-      ? [
-          {
-            id: "/logout",
-            label: "/logout",
-            description: "Sign out of your account",
-            category: "Auth",
-          },
-        ]
-      : [
-          {
-            id: "/login",
-            label: "/login",
-            description: "Authenticate with your Maid account",
-            category: "Auth",
-          },
-          {
-            id: "/signup",
-            label: "/signup",
-            description: "Create a new Maid account",
-            category: "Auth",
-          },
-        ];
-
-    return [
-      ...authCommands,
-      {
-        id: "/help",
-        label: "/help",
-        description: "Show help and documentation",
-        category: "General",
-      },
-      {
-        id: "/quit",
-        label: "/quit",
-        description: "Exit the application",
-        category: "General",
-      },
-    ];
-  }, [sessionData]);
-
-  const addView = useCallback((view: ViewPayload) => {
-    setViews((current) => {
-      const id = nextViewId.current;
-      nextViewId.current += 1;
-      const viewWithId: ViewInstance = { ...view, id } as ViewInstance;
-      let nextViews: ViewInstance[] = [...current, viewWithId];
-
-      if (view.kind === "palette") {
-        nextViews = nextViews.filter(
-          (candidate) =>
-            candidate.kind !== "palette" || candidate.id === viewWithId.id,
-        );
-      }
-
-      return nextViews;
-    });
-  }, []);
-
-  const removeView = useCallback((id: number) => {
-    setViews((current) => current.filter((view) => view.id !== id));
-  }, []);
-
-  const addTextView = useCallback(
-    (message: string) => {
-      addView({ kind: "text", message });
+  const addView = useCallback(
+    (view: View) => {
+      setViews([...views, view]);
     },
-    [addView],
+    [views, setViews],
   );
-
-  const handlePaletteSubmit = useCallback(
-    async (selection: CommandPaletteSelection) => {
-      if (selection.type === "known") {
-        const commandId = selection.command.id;
-
-        switch (commandId) {
-          case "/login":
-            addView({ kind: "login" });
-            break;
-          case "/logout":
-            addView({ kind: "logout" });
-            break;
-          case "/signup":
-            addView({ kind: "signup" });
-            break;
-          case "/help": {
-            const snapshot = commands.map((command) => ({ ...command }));
-            addView({
-              kind: "help",
-              commands: snapshot,
-              sessionEmail: sessionData?.user.email,
-            });
-            break;
-          }
-          case "/quit":
-            process.exit(0);
-          default:
-            addTextView(`Unknown command: ${commandId}`);
-        }
-        return;
-      }
-
-      // Custom input (not a predefined command)
-      addTextView(`Custom input: ${selection.value}`);
-    },
-    [addTextView, addView, commands, sessionData],
-  );
-
-  const handleLoginSuccess = useCallback(
-    (data: SessionData) => {
-      setSessionData(data);
-      // View updates handled by LoginForm through context
-    },
-    [],
-  );
-
-  const handleSignupSuccess = useCallback(
-    (data: SessionData) => {
-      setSessionData(data);
-      // View updates handled by SignupForm through context
-    },
-    [],
-  );
-
-  const activeInteractiveIndex = useMemo(() => {
-    for (let i = views.length - 1; i >= 0; i -= 1) {
-      const view = views[i];
-      if (!view) {
-        continue;
-      }
-      const kind = view.kind;
-      if (
-        kind === "palette" ||
-        kind === "login" ||
-        kind === "signup" ||
-        kind === "help"
-      ) {
-        return i;
-      }
-    }
-    return -1;
-  }, [views]);
-
-  // Show loading state while verifying session
-  if (isLoadingSession) {
-    return (
-      <Box flexDirection="column" rowGap={1}>
-        <Header url={url} />
-        <Box paddingX={2}>
-          <Text dimColor>Loading session...</Text>
-        </Box>
-      </Box>
-    );
-  }
 
   return (
-    <AddViewProvider addView={addView}>
-      <Box flexDirection="column" rowGap={1}>
-        <Header
-          url={url}
-          email={sessionData ? sessionData.user.email : undefined}
-        />
-
-        {views.map((view, index) => {
-          const isActive = index === activeInteractiveIndex;
-
-          switch (view.kind) {
-            case "palette":
-              return (
-                <CommandPalette
-                  key={view.id}
-                  options={commands}
-                  onSubmit={handlePaletteSubmit}
-                  isActive={isActive}
-                />
-              );
-            case "login":
-              return (
-                <LoginForm
-                  key={view.id}
-                  apiUrl={url}
-                  onSuccess={handleLoginSuccess}
-                  isActive={isActive}
-                  onDismiss={() => removeView(view.id)}
-                />
-              );
-            case "signup":
-              return (
-                <SignupForm
-                  key={view.id}
-                  apiUrl={url}
-                  onSuccess={handleSignupSuccess}
-                  isActive={isActive}
-                  onDismiss={() => removeView(view.id)}
-                />
-              );
-            case "logout":
-              return (
-                <LogoutView
-                  key={view.id}
-                  onLoggedOut={() => setSessionData(null)}
-                  onDismiss={() => removeView(view.id)}
-                />
-              );
-            case "help":
-              return (
-                <HelpView
-                  key={view.id}
-                  commands={view.commands}
-                  sessionEmail={view.sessionEmail}
-                  isActive={isActive}
-                  onDismiss={() => removeView(view.id)}
-                />
-              );
-            case "text":
-              return (
-                <Box
-                  key={view.id}
-                  paddingX={1}
-                  paddingY={0}
-                  borderStyle="round"
-                  borderColor="yellow"
-                  flexDirection="row"
-                >
-                  <Text color="yellow">{view.message}</Text>
-                </Box>
-              );
-            default:
-              return null;
-          }
-        })}
-      </Box>
-    </AddViewProvider>
+    <viewContext.Provider value={addView}>
+      {views.map((view, index) => {
+        switch (view.kind) {
+          case "text":
+            return (
+              <Text key={index} dimColor={view.option.dimColor ?? false}>
+                {view.option.label as string}
+              </Text>
+            );
+          case "commander":
+            return <Commander key={index} />;
+          default:
+            return <Text key={index}>{view.kind}: "Unknown"</Text>;
+        }
+      })}
+    </viewContext.Provider>
   );
 }
