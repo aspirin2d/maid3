@@ -27,7 +27,7 @@ const commandsC = [
 const fuseA = new Fuse([...commandsA, ...commandsC], { keys: ["id"] });
 
 export default function Commander() {
-  const addView = useContext(viewContext);
+  const context = useContext(viewContext);
 
   const [active, setActive] = useState(true);
   const [query, setQuery] = useState("");
@@ -36,21 +36,21 @@ export default function Commander() {
     setActive(false);
 
     const q = searchList.length > 0 ? searchList[0] : null;
-    if (addView && q) {
+    if (context && q) {
       switch (q.item.id) {
         case "/login":
         case "/signup":
-          addView({ kind: q.item.id });
+          context.setViews([...context.views, { kind: q.item.id }]);
           return;
         case "/exit":
-          addView({
-            kind: "text",
-            option: { label: "Bye!", color: "magenta" },
-          });
+          context.setViews([
+            ...context.views,
+            { kind: "text", option: "Bye!" },
+          ]);
           setTimeout(() => process.exit(), 50);
       }
     }
-  }, [query, addView, setActive]);
+  }, [query, context, setActive]);
 
   const searchList = useMemo(() => {
     return fuseA.search(query); // Perform search based on the current query

@@ -1,7 +1,7 @@
 import { Text } from "ink";
-import { useCallback, useState } from "react";
-import { type View, viewContext } from "./context.js";
+import { useState } from "react";
 import Commander from "./commander.js";
+import { Session, type View, viewContext } from "./context.js";
 import Login from "./login.js";
 
 export default function App({ url }: { url: string }) {
@@ -9,15 +9,10 @@ export default function App({ url }: { url: string }) {
     { kind: "commander", option: { url: url } },
   ]);
 
-  const addView = useCallback(
-    (view: View) => {
-      setViews([...views, view]);
-    },
-    [views, setViews],
-  );
+  const [session, setSession] = useState<Session | null>(null);
 
   return (
-    <viewContext.Provider value={addView}>
+    <viewContext.Provider value={{ views, setViews, session, setSession }}>
       {views.map((view, index) => {
         switch (view.kind) {
           case "text":
