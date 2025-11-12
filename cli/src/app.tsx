@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandPalette, CommandPaletteSelection } from "./command-palette.js";
 import { LoginForm } from "./login-form.js";
 import {
@@ -9,6 +9,9 @@ import {
   type SessionData,
 } from "./session.js";
 import { SignupForm } from "./signup-form.js";
+import { AddViewProvider } from "./view-context.js";
+import type { ViewInstance, ViewPayload } from "./view-types.js";
+import { LogoutView } from "./logout-view.js";
 
 function Header({ url, email }: { url: string; email?: string }) {
   return (
@@ -29,12 +32,13 @@ function Header({ url, email }: { url: string; email?: string }) {
   );
 }
 
-type View = "palette" | "login" | "signup";
-
 export default function App({ url }: { url: string }) {
-  const [currentView, setCurrentView] = useState<View>("palette");
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const nextViewId = useRef(1);
+  const [views, setViews] = useState<ViewInstance[]>([
+    { id: 0, kind: "palette" },
+  ]);
 
   // Load and verify session on mount
   useEffect(() => {
@@ -103,6 +107,23 @@ export default function App({ url }: { url: string }) {
     ];
   }, [sessionData]);
 
+  const addView = useCallback((view: ViewPayload) => {
+    setViews((current) => [
+      ...current,
+      {
+        ...view,
+        id: nextViewId.current++,
+      },
+    ]);
+  }, []);
+
+  const addTextView = useCallback(
+    (message: string) => {
+      addView({ kind: "text", message });
+    },
+    [addView],
+  );
+
   const handlePaletteSubmit = useCallback(
     async (selection: CommandPaletteSelection) => {
       if (selection.type === "known") {
@@ -110,53 +131,61 @@ export default function App({ url }: { url: string }) {
 
         switch (commandId) {
           case "/login":
-            setCurrentView("login");
+            addView({ kind: "login" });
             break;
           case "/logout":
-            await clearSession();
-            setSessionData(null);
-            console.log("Logged out successfully");
+            addView({ kind: "logout" });
             break;
           case "/signup":
-            setCurrentView("signup");
+            addView({ kind: "signup" });
             break;
           case "/help":
             // TODO: Implement help view
-            console.log("Help command - coming soon!");
+            addTextView("Help command - coming soon!");
             break;
           case "/quit":
             process.exit(0);
           default:
-            console.log("Unknown command:", commandId);
+            addTextView(`Unknown command: ${commandId}`);
         }
         return;
       }
 
       // Custom input (not a predefined command)
-      console.log("Custom input:", selection.value);
+      addTextView(`Custom input: ${selection.value}`);
+    },
+    [addTextView, addView],
+  );
+
+  const handleLoginSuccess = useCallback(
+    (data: SessionData) => {
+      setSessionData(data);
+      // View updates handled by LoginForm through context
     },
     [],
   );
 
-  const handleLoginSuccess = useCallback((data: SessionData) => {
-    setSessionData(data);
-    console.log("Login successful!", data.user);
-    setCurrentView("palette");
-  }, []);
+  const handleSignupSuccess = useCallback(
+    (data: SessionData) => {
+      setSessionData(data);
+      // View updates handled by SignupForm through context
+    },
+    [],
+  );
 
-  const handleLoginCancel = useCallback(() => {
-    setCurrentView("palette");
-  }, []);
-
-  const handleSignupSuccess = useCallback((data: SessionData) => {
-    setSessionData(data);
-    console.log("Signup successful!", data.user);
-    setCurrentView("palette");
-  }, []);
-
-  const handleSignupCancel = useCallback(() => {
-    setCurrentView("palette");
-  }, []);
+  const activeInteractiveIndex = useMemo(() => {
+    for (let i = views.length - 1; i >= 0; i -= 1) {
+      const view = views[i];
+      if (!view) {
+        continue;
+      }
+      const kind = view.kind;
+      if (kind === "palette" || kind === "login" || kind === "signup") {
+        return i;
+      }
+    }
+    return -1;
+  }, [views]);
 
   // Show loading state while verifying session
   if (isLoadingSession) {
@@ -171,32 +200,69 @@ export default function App({ url }: { url: string }) {
   }
 
   return (
-    <Box flexDirection="column" rowGap={1}>
-      <Header
-        url={url}
-        email={sessionData ? sessionData.user.email : undefined}
-      />
-
-      {/* Render current view */}
-      {currentView === "palette" && (
-        <CommandPalette options={commands} onSubmit={handlePaletteSubmit} />
-      )}
-
-      {currentView === "login" && (
-        <LoginForm
-          apiUrl={url}
-          onSuccess={handleLoginSuccess}
-          onCancel={handleLoginCancel}
+    <AddViewProvider addView={addView}>
+      <Box flexDirection="column" rowGap={1}>
+        <Header
+          url={url}
+          email={sessionData ? sessionData.user.email : undefined}
         />
-      )}
 
-      {currentView === "signup" && (
-        <SignupForm
-          apiUrl={url}
-          onSuccess={handleSignupSuccess}
-          onCancel={handleSignupCancel}
-        />
-      )}
-    </Box>
+        {views.map((view, index) => {
+          const isActive = index === activeInteractiveIndex;
+
+          switch (view.kind) {
+            case "palette":
+              return (
+                <CommandPalette
+                  key={view.id}
+                  options={commands}
+                  onSubmit={handlePaletteSubmit}
+                  isActive={isActive}
+                />
+              );
+            case "login":
+              return (
+                <LoginForm
+                  key={view.id}
+                  apiUrl={url}
+                  onSuccess={handleLoginSuccess}
+                  isActive={isActive}
+                />
+              );
+            case "signup":
+              return (
+                <SignupForm
+                  key={view.id}
+                  apiUrl={url}
+                  onSuccess={handleSignupSuccess}
+                  isActive={isActive}
+                />
+              );
+            case "logout":
+              return (
+                <LogoutView
+                  key={view.id}
+                  onLoggedOut={() => setSessionData(null)}
+                />
+              );
+            case "text":
+              return (
+                <Box
+                  key={view.id}
+                  paddingX={1}
+                  paddingY={0}
+                  borderStyle="round"
+                  borderColor="yellow"
+                  flexDirection="row"
+                >
+                  <Text color="yellow">{view.message}</Text>
+                </Box>
+              );
+            default:
+              return null;
+          }
+        })}
+      </Box>
+    </AddViewProvider>
   );
 }

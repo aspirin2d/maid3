@@ -20,6 +20,7 @@ export type CommandPaletteProps = {
   emptyLabel?: string;
   showHelp?: boolean;
   onSubmit: (selection: CommandPaletteSelection) => void;
+  isActive?: boolean;
 };
 
 /**
@@ -60,9 +61,11 @@ export function CommandPalette({
   emptyLabel = "No matching commands",
   showHelp = true,
   onSubmit,
+  isActive = true,
 }: CommandPaletteProps) {
   const [rawInput, setRawInput] = useState("");
   const [cursor, setCursor] = useState(0);
+  const [submittedInput, setSubmittedInput] = useState("");
 
   const isCommandMode = rawInput.startsWith("/");
   const query = isCommandMode ? rawInput.slice(1) : "";
@@ -105,6 +108,13 @@ export function CommandPalette({
 
   const handleSelect = useCallback(
     (option?: CommandPaletteOption) => {
+      const trimmedInput = rawInput.trim();
+      const recordedInput = trimmedInput || option?.label || option?.id || "";
+
+      if (recordedInput) {
+        setSubmittedInput(recordedInput);
+      }
+
       if (option) {
         onSubmit({ type: "known", command: option });
       } else if (rawInput.trim()) {
@@ -117,35 +127,57 @@ export function CommandPalette({
     [onSubmit, rawInput],
   );
 
-  useInput((_, key) => {
-    if (!isCommandMode || !filtered.length) {
+  useInput(
+    (_, key) => {
+      if (!isCommandMode || !filtered.length) {
+        return;
+      }
+
+      if (key.upArrow) {
+        setCursor((current) =>
+          current === 0 ? filtered.length - 1 : current - 1,
+        );
+      }
+
+      if (key.downArrow) {
+        setCursor((current) => (current + 1) % filtered.length);
+      }
+
+      if (key.escape) {
+        setRawInput("");
+        setCursor(0);
+      }
+    },
+    { isActive },
+  );
+
+  const handleSubmit = useCallback(() => {
+    if (!isActive) {
       return;
     }
 
-    if (key.upArrow) {
-      setCursor((current) =>
-        current === 0 ? filtered.length - 1 : current - 1,
-      );
-    }
-
-    if (key.downArrow) {
-      setCursor((current) => (current + 1) % filtered.length);
-    }
-
-    if (key.escape) {
-      setRawInput("");
-      setCursor(0);
-    }
-  });
-
-  const handleSubmit = useCallback(() => {
     if (isCommandMode && filtered.length) {
       handleSelect(filtered[cursor]);
       return;
     }
 
     handleSelect(undefined);
-  }, [cursor, filtered, handleSelect, isCommandMode]);
+  }, [cursor, filtered, handleSelect, isActive, isCommandMode]);
+
+  if (!isActive) {
+    return (
+      <Box flexDirection="column" rowGap={0}>
+        <Box paddingX={1} paddingY={1} flexDirection="row" columnGap={1}>
+          <Text color="cyan" bold>
+            {"›"}
+          </Text>
+          <Text color={submittedInput ? "white" : "gray"}>
+            {submittedInput || placeholder}
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" rowGap={0}>
@@ -166,6 +198,7 @@ export function CommandPalette({
           placeholder={placeholder}
           onChange={setRawInput}
           onSubmit={handleSubmit}
+          focus={isActive}
         />
       </Box>
 

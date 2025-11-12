@@ -2,16 +2,22 @@ import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useState, useCallback } from "react";
 import { saveSession, type SessionData } from "./session.js";
+import { useAddView } from "./view-context.js";
 
 export type LoginFormProps = {
   apiUrl: string;
   onSuccess?: (data: SessionData) => void;
-  onCancel?: () => void;
+  isActive?: boolean;
 };
 
 type FormState = "editing" | "submitting" | "success" | "error";
 
-export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
+export function LoginForm({
+  apiUrl,
+  onSuccess,
+  isActive = true,
+}: LoginFormProps) {
+  const addView = useAddView();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [field, setField] = useState<"email" | "password">("email");
@@ -59,6 +65,9 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
       await saveSession(sessionData);
       setState("success");
       onSuccess?.(sessionData);
+      const label = sessionData.user.email || sessionData.user.name || "User";
+      addView({ kind: "text", message: `Login successful: ${label}` });
+      addView({ kind: "palette" });
     } catch (error) {
       setState("error");
       setErrorMessage(
@@ -68,14 +77,14 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
         setState("editing");
       }, 2000);
     }
-  }, [apiUrl, email, password, onSuccess]);
+  }, [addView, apiUrl, email, password, onSuccess]);
 
   useInput(
     useCallback(
       (_input, key) => {
         if (state !== "editing") return;
         if (key.escape) {
-          onCancel?.();
+          addView({ kind: "palette" });
         } else if (key.return) {
           if (field === "email" && email) {
             setField("password");
@@ -94,8 +103,9 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
           }
         }
       },
-      [state, field, email, password, onCancel, handleSubmit],
+      [addView, state, field, email, password, handleSubmit],
     ),
+    { isActive },
   );
 
   return (
@@ -103,13 +113,23 @@ export function LoginForm({ apiUrl, onSuccess, onCancel }: LoginFormProps) {
       <Box flexDirection="row" paddingX={2} columnGap={2}>
         <Text>Email:</Text>
         {field === "email" ? (
-          <TextInput value={email} onChange={setEmail} placeholder="user@example.com" />
+          <TextInput
+            value={email}
+            onChange={setEmail}
+            placeholder="user@example.com"
+            focus={isActive}
+          />
         ) : (
           <Text color="cyan">{email}</Text>
         )}
         <Text>Password:</Text>
         {field === "password" ? (
-          <TextInput value={password} onChange={setPassword} mask="•" />
+          <TextInput
+            value={password}
+            onChange={setPassword}
+            mask="•"
+            focus={isActive}
+          />
         ) : (
           <Text dimColor>{password ? "••••••••" : ""}</Text>
         )}
