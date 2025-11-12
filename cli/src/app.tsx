@@ -2,6 +2,7 @@ import { Box, Text } from "ink";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { CommandPalette, CommandPaletteSelection } from "./command-palette.js";
 import { LoginForm } from "./login-form.js";
+import { SignupForm } from "./signup-form.js";
 import {
   loadSession,
   clearSession,
@@ -140,13 +141,20 @@ export default function App({ url }: { url: string }) {
   const handleLoginSuccess = useCallback((data: SessionData) => {
     setSessionData(data);
     console.log("Login successful!", data.user);
-    // Return to command palette
-    setTimeout(() => {
-      setCurrentView("palette");
-    }, 2000);
+    setCurrentView("palette");
   }, []);
 
   const handleLoginCancel = useCallback(() => {
+    setCurrentView("palette");
+  }, []);
+
+  const handleSignupSuccess = useCallback((data: SessionData) => {
+    setSessionData(data);
+    console.log("Signup successful!", data.user);
+    setCurrentView("palette");
+  }, []);
+
+  const handleSignupCancel = useCallback(() => {
     setCurrentView("palette");
   }, []);
 
@@ -195,10 +203,11 @@ export default function App({ url }: { url: string }) {
       )}
 
       {currentView === "signup" && (
-        <Box paddingX={2}>
-          <Text color="yellow">Signup form - coming soon!</Text>
-          <Text dimColor>Press Esc to go back</Text>
-        </Box>
+        <SignupForm
+          apiUrl={url}
+          onSuccess={handleSignupSuccess}
+          onCancel={handleSignupCancel}
+        />
       )}
     </Box>
   );
