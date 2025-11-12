@@ -44,19 +44,6 @@ export default function App({ url }: { url: string }) {
         category: "Auth",
       },
       {
-        id: "/story/new",
-        label: "/story/new",
-        description: "Create a new conversation story",
-        category: "Story",
-        shortcut: "⌘N",
-      },
-      {
-        id: "/story/list",
-        label: "/story/list",
-        description: "List all your stories",
-        category: "Story",
-      },
-      {
         id: "/memory/search",
         label: "/memory/search",
         description: "Search through your memories",
