@@ -1,14 +1,14 @@
 import { Box, Text } from "ink";
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandPalette, CommandPaletteSelection } from "./command-palette.js";
 import { LoginForm } from "./login-form.js";
-import { SignupForm } from "./signup-form.js";
 import {
-  loadSession,
   clearSession,
+  loadSession,
   verifySession,
   type SessionData,
 } from "./session.js";
+import { SignupForm } from "./signup-form.js";
 
 function Header({ url, email }: { url: string; email?: string }) {
   return (
@@ -126,7 +126,6 @@ export default function App({ url }: { url: string }) {
             break;
           case "/quit":
             process.exit(0);
-            break;
           default:
             console.log("Unknown command:", commandId);
         }
