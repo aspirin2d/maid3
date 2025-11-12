@@ -179,9 +179,9 @@ export function CommandPalette({
                 <Text dimColor bold>
                   Keyboard shortcuts:
                 </Text>
-                <Text dimColor>  ↑/↓  Navigate commands</Text>
-                <Text dimColor>  ⏎   Select command</Text>
-                <Text dimColor>  ⎋   Clear input</Text>
+                <Text dimColor> ↑/↓ Navigate commands</Text>
+                <Text dimColor> ⏎ Select command</Text>
+                <Text dimColor> ⎋ Clear input</Text>
               </Box>
             )}
           </Box>
@@ -213,10 +213,7 @@ export function CommandPalette({
                     </Text>
                   </Box>
                   <Box minWidth={20}>
-                    <Text
-                      color={isActive ? "cyan" : "white"}
-                      bold={isActive}
-                    >
+                    <Text color={isActive ? "cyan" : "white"} bold={isActive}>
                       {option.label}
                     </Text>
                   </Box>
@@ -253,8 +250,8 @@ export function CommandPalette({
       {isCommandMode && filtered.length > 0 && showHelp && (
         <Box paddingX={1} marginTop={1}>
           <Text dimColor>
-            {filtered.length} {filtered.length === 1 ? "command" : "commands"}{" "}
-            • Use ↑↓ to navigate • ⏎ to select
+            {filtered.length} {filtered.length === 1 ? "command" : "commands"} •
+            Use ↑↓ to navigate • ⏎ to select
           </Text>
         </Box>
       )}
