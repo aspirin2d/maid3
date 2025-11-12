@@ -1,6 +1,7 @@
 import { Box, Text } from "ink";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { CommandPalette, CommandPaletteSelection } from "./command-palette.js";
+import { LoginForm } from "./login-form.js";
 
 function Header({ url }: { url: string }) {
   return (
@@ -20,7 +21,15 @@ function Header({ url }: { url: string }) {
   );
 }
 
+type View = "palette" | "login" | "signup";
+
 export default function App({ url }: { url: string }) {
+  const [currentView, setCurrentView] = useState<View>("palette");
+  const [sessionData, setSessionData] = useState<{
+    session: unknown;
+    user: unknown;
+  } | null>(null);
+
   const commands = useMemo(
     () => [
       {
@@ -54,8 +63,25 @@ export default function App({ url }: { url: string }) {
   const handlePaletteSubmit = useCallback(
     (selection: CommandPaletteSelection) => {
       if (selection.type === "known") {
-        // TODO: Implement command handlers
-        console.log("Command selected:", selection.command.id);
+        const commandId = selection.command.id;
+
+        switch (commandId) {
+          case "/login":
+            setCurrentView("login");
+            break;
+          case "/signup":
+            setCurrentView("signup");
+            break;
+          case "/help":
+            // TODO: Implement help view
+            console.log("Help command - coming soon!");
+            break;
+          case "/quit":
+            process.exit(0);
+            break;
+          default:
+            console.log("Unknown command:", commandId);
+        }
         return;
       }
 
@@ -65,10 +91,58 @@ export default function App({ url }: { url: string }) {
     [],
   );
 
+  const handleLoginSuccess = useCallback(
+    (data: { session: unknown; user: unknown }) => {
+      setSessionData(data);
+      console.log("Login successful!", data);
+      // Return to command palette
+      setTimeout(() => {
+        setCurrentView("palette");
+      }, 2000);
+    },
+    [],
+  );
+
+  const handleLoginCancel = useCallback(() => {
+    setCurrentView("palette");
+  }, []);
+
   return (
     <Box flexDirection="column" rowGap={1}>
       <Header url={url} />
-      <CommandPalette options={commands} onSubmit={handlePaletteSubmit} />
+
+      {/* Show session info if logged in */}
+      {sessionData && (
+        <Box
+          paddingX={2}
+          paddingY={1}
+          borderStyle="round"
+          borderColor="green"
+          alignSelf="flex-start"
+        >
+          <Text color="green">✓ Authenticated</Text>
+        </Box>
+      )}
+
+      {/* Render current view */}
+      {currentView === "palette" && (
+        <CommandPalette options={commands} onSubmit={handlePaletteSubmit} />
+      )}
+
+      {currentView === "login" && (
+        <LoginForm
+          apiUrl={url}
+          onSuccess={handleLoginSuccess}
+          onCancel={handleLoginCancel}
+        />
+      )}
+
+      {currentView === "signup" && (
+        <Box paddingX={2}>
+          <Text color="yellow">Signup form - coming soon!</Text>
+          <Text dimColor>Press Esc to go back</Text>
+        </Box>
+      )}
     </Box>
   );
 }
