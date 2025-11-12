@@ -33,18 +33,35 @@ export default function Commander() {
   const [query, setQuery] = useState("");
 
   const onSubmit = useCallback(() => {
-    const q = searchList.length > 0 ? searchList[0] : null;
-    if (addView && q)
-      addView({ kind: "text", option: { label: q.item.id, dimColor: true } });
-    setQuery(""); // clear the input after submitting
     setActive(false);
-  }, [query]);
+
+    const q = searchList.length > 0 ? searchList[0] : null;
+    if (addView && q) {
+      switch (q.item.id) {
+        case "/login":
+        case "/signup":
+          addView({ kind: q.item.id });
+          return;
+        case "/exit":
+          addView({
+            kind: "text",
+            option: { label: "Bye!", color: "magenta" },
+          });
+          setTimeout(() => process.exit(), 50);
+      }
+    }
+  }, [query, addView, setActive]);
 
   const searchList = useMemo(() => {
     return fuseA.search(query); // Perform search based on the current query
   }, [query]);
 
-  if (!active) return null;
+  if (!active)
+    return (
+      <Text bold color="magenta">
+        {searchList[0]?.item.id ?? ""}
+      </Text>
+    );
 
   return (
     <Box flexDirection="column">
