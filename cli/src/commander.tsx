@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession, type View } from "./context.js";
 import { guestCommands, authedCommands, registry } from "./commands.js";
-import { parseCommand, requiresParams } from "./commandParser.js";
+import { createYargsParser, requiresParams } from "./yargsParser.js";
 
 import Fuse from "fuse.js";
 import { Box, Text, useInput } from "ink";
@@ -13,6 +13,11 @@ export default function Commander() {
   const addViews = useAddViews();
   const [session] = useSession();
   const availableCommands = session ? authedCommands : guestCommands;
+
+  const yargsParser = useMemo(
+    () => createYargsParser(availableCommands),
+    [availableCommands]
+  );
 
   const commandFuse = useMemo(
     () => new Fuse(availableCommands, { keys: ["id", "desc"] }),
@@ -93,8 +98,8 @@ export default function Commander() {
   const onSubmit = useCallback(() => {
     setActive(false);
 
-    // Try exact command parsing first (handles parameters)
-    const parsed = parseCommand(query, availableCommands);
+    // Try exact command parsing first with yargs (handles parameters)
+    const parsed = yargsParser.parse(query);
     if (parsed) {
       executeCommand(parsed.command.handler, parsed.params, parsed.displayedCommand);
       return;
@@ -124,7 +129,7 @@ export default function Commander() {
     executeCommand(selectedCommand.item.handler, {}, selectedCommand.item.id);
   }, [
     query,
-    availableCommands,
+    yargsParser,
     searchList,
     selectedIndex,
     executeCommand,
