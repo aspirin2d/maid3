@@ -1,7 +1,8 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState } from "react";
-import { useAddViews, useSession } from "./context.js";
+import { useCallback, useContext, useState } from "react";
+import { useAddViews, useSession, viewContext } from "./context.js";
+import { validateEmail, validatePassword, validateName } from "./validation.js";
 
 export default function Signup({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -16,9 +17,33 @@ export default function Signup({ url }: { url: string }) {
   const [, setSession] = useSession();
   const addViews = useAddViews();
 
+  const context = useContext(viewContext);
+  if (!context) throw new Error("viewContext is not available");
+  const { generateViewId } = context;
+
   useInput(
     (_input, key) => {
       if (!active) return;
+
+      if (key.tab && !key.shift) {
+        setError("");
+        if (step === "name") {
+          const nameError = validateName(name);
+          if (nameError) {
+            setError(nameError);
+          } else {
+            setStep("email");
+          }
+        } else if (step === "email") {
+          const emailError = validateEmail(email);
+          if (emailError) {
+            setError(emailError);
+          } else {
+            setStep("password");
+          }
+        }
+        return;
+      }
 
       if (key.shift && key.tab) {
         setError("");
@@ -33,10 +58,11 @@ export default function Signup({ url }: { url: string }) {
       if (key.escape) {
         addViews(
           {
+            id: generateViewId(),
             kind: "text",
             option: { label: "Signup canceled", dimColor: true },
           },
-          { kind: "commander" },
+          { id: generateViewId(), kind: "commander" },
         );
 
         setActive(false);
@@ -47,30 +73,23 @@ export default function Signup({ url }: { url: string }) {
 
   const signup = useCallback(async () => {
     try {
-      if (!name) {
-        setError("Name is required");
+      const nameError = validateName(name);
+      if (nameError) {
+        setError(nameError);
         setStep("name");
         return;
       }
-      if (!email) {
-        setError("Email is required");
+
+      const emailError = validateEmail(email);
+      if (emailError) {
+        setError(emailError);
         setStep("email");
         return;
       }
-      // Email validation
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setError("Invalid email format");
-        setStep("email");
-        return;
-      }
-      if (!password) {
-        setError("Password is required");
-        setStep("password");
-        return;
-      }
-      // Password validation
-      if (password.length < 8) {
-        setError("Password must be at least 8 characters");
+
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        setError(passwordError);
         setStep("password");
         return;
       }
@@ -78,52 +97,70 @@ export default function Signup({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const res = await fetch(`${url}/auth/sign-up/email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-        }),
-      });
-      if (!res.ok) {
-        let message = "Failed to signup";
-        try {
-          const json = await res.json();
-          if (json.message) message += ": " + json.message;
-        } catch {}
-        throw new Error(message);
-      }
-      const json = await res.json();
-      const token = res.headers.get("set-auth-token");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      setSession({
-        email: json.user.email,
-        bearerToken: token ?? "",
-      });
-      addViews(
-        {
-          kind: "text",
-          option: {
-            label: "Signed up as " + json.user.email,
+      try {
+        const res = await fetch(`${url}/auth/sign-up/email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        },
-        { kind: "commander" },
-      );
-      setActive(false);
-    } catch (e: any) {
-      if (e instanceof TypeError) {
-        setError("Network error: Cannot connect to server");
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          let message = "Failed to signup";
+          try {
+            const json = await res.json();
+            if (json.message) message = json.message;
+          } catch {}
+          throw new Error(message);
+        }
+        const json = await res.json();
+        const token = res.headers.get("set-auth-token");
+
+        setSession({
+          email: json.user.email,
+          bearerToken: token ?? "",
+        });
+        addViews(
+          {
+            id: generateViewId(),
+            kind: "text",
+            option: {
+              label: "Signed up as " + json.user.email,
+            },
+          },
+          { id: generateViewId(), kind: "commander" },
+        );
+        setActive(false);
+      } catch (e) {
+        clearTimeout(timeout);
+        throw e;
+      }
+    } catch (e) {
+      if (e instanceof Error) {
+        if (e.name === 'AbortError') {
+          setError('Request timeout - server not responding');
+        } else if (e instanceof TypeError) {
+          setError("Network error: Cannot connect to server");
+        } else {
+          setError(e.message);
+        }
       } else {
-        setError(e.message ?? "Unknown error");
+        setError("Unknown error");
       }
     } finally {
       setLoading(false);
     }
-  }, [url, name, email, password, setSession, addViews, setStep, setError]);
+  }, [url, name, email, password, setSession, addViews, generateViewId]);
 
   if (!active) return null;
 
@@ -144,8 +181,9 @@ export default function Signup({ url }: { url: string }) {
             placeholder="Your Name"
             focus
             onSubmit={() => {
-              if (!name) {
-                setError("Name is required");
+              const nameError = validateName(name);
+              if (nameError) {
+                setError(nameError);
                 return;
               }
               setError("");
@@ -169,12 +207,9 @@ export default function Signup({ url }: { url: string }) {
               placeholder="abc@abc.com"
               focus
               onSubmit={() => {
-                if (!email) {
-                  setError("Email is required");
-                  return;
-                }
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                  setError("Invalid email format");
+                const emailError = validateEmail(email);
+                if (emailError) {
+                  setError(emailError);
                   return;
                 }
                 setError("");
@@ -202,7 +237,15 @@ export default function Signup({ url }: { url: string }) {
         </Box>
       )}
 
-      {step !== "name" && (
+      {step === "name" && (
+        <Text dimColor>Press Tab to continue, Esc to cancel.</Text>
+      )}
+
+      {step === "email" && (
+        <Text dimColor>Press Tab to continue, Shift+Tab to go back, Esc to cancel.</Text>
+      )}
+
+      {step === "password" && (
         <Text dimColor>Press Shift+Tab to go back, Esc to cancel.</Text>
       )}
 
