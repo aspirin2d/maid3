@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useContext, useState } from "react";
-import { useAddViews, useSession, viewContext } from "./context.js";
+import { useCallback, useState } from "react";
+import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword, validateName } from "./validation.js";
 
 export default function Signup({ url }: { url: string }) {
@@ -16,10 +16,6 @@ export default function Signup({ url }: { url: string }) {
   const [active, setActive] = useState(true);
   const [, setSession] = useSession();
   const addViews = useAddViews();
-
-  const context = useContext(viewContext);
-  if (!context) throw new Error("viewContext is not available");
-  const { generateViewId } = context;
 
   useInput(
     (_input, key) => {
@@ -58,11 +54,10 @@ export default function Signup({ url }: { url: string }) {
       if (key.escape) {
         addViews(
           {
-            id: generateViewId(),
             kind: "text",
             option: { label: "Signup canceled", dimColor: true },
           },
-          { id: generateViewId(), kind: "commander" },
+          { kind: "commander" },
         );
 
         setActive(false);
@@ -132,13 +127,12 @@ export default function Signup({ url }: { url: string }) {
         });
         addViews(
           {
-            id: generateViewId(),
             kind: "text",
             option: {
               label: "Signed up as " + json.user.email,
             },
           },
-          { id: generateViewId(), kind: "commander" },
+          { kind: "commander" },
         );
         setActive(false);
       } catch (e) {
@@ -160,7 +154,7 @@ export default function Signup({ url }: { url: string }) {
     } finally {
       setLoading(false);
     }
-  }, [url, name, email, password, setSession, addViews, generateViewId]);
+  }, [url, name, email, password, setSession, addViews]);
 
   if (!active) return null;
 

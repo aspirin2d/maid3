@@ -9,11 +9,6 @@ import Login from "./login.js";
 import Signup from "./signup.js";
 import Logout from "./logout.js";
 
-let nextViewId = 0;
-function generateViewId(): string {
-  return `view-${Date.now()}-${nextViewId++}`;
-}
-
 const sessionFilePath = path.join(homedir(), ".maid_session");
 
 function isSession(data: any): data is Session {
@@ -62,14 +57,13 @@ export default function App({ url }: { url: string }) {
 
   const [views, setViews] = useState<View[]>([
     {
-      id: generateViewId(),
       kind: "text",
       option: {
         label: session ? `Login as ${session.email}` : "Please '/login' first",
         dimColor: true,
       },
     },
-    { id: generateViewId(), kind: "commander", option: { url: url } },
+    { kind: "commander", option: { url: url } },
   ]);
 
   const setSession = useCallback((value: SetStateAction<Session | null>) => {
@@ -96,7 +90,6 @@ export default function App({ url }: { url: string }) {
           setViews((prev) => [
             ...prev,
             {
-              id: generateViewId(),
               kind: "text",
               option: {
                 label: "Session expired, please login again",
@@ -112,15 +105,13 @@ export default function App({ url }: { url: string }) {
   }, []); // Run once on mount
 
   return (
-    <viewContext.Provider
-      value={{ views, setViews, session, setSession, generateViewId }}
-    >
-      {views.map((view) => {
+    <viewContext.Provider value={{ views, setViews, session, setSession }}>
+      {views.map((view, index) => {
         switch (view.kind) {
           case "text":
             return (
               <Text
-                key={view.id}
+                key={index}
                 color={view.option.color}
                 dimColor={view.option.dimColor ?? false}
               >
@@ -128,13 +119,13 @@ export default function App({ url }: { url: string }) {
               </Text>
             );
           case "commander":
-            return <Commander key={view.id} />;
+            return <Commander key={index} />;
           case "/login":
-            return <Login key={view.id} url={url} />;
+            return <Login key={index} url={url} />;
           case "/signup":
-            return <Signup key={view.id} url={url} />;
+            return <Signup key={index} url={url} />;
           case "/logout":
-            return <Logout key={view.id} />;
+            return <Logout key={index} />;
         }
       })}
     </viewContext.Provider>

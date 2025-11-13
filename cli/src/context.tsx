@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext } from "react";
 
 export type TextView = {
-  id: string;
   kind: "text";
   option: {
     label: string;
@@ -11,25 +10,21 @@ export type TextView = {
 };
 
 export type CommanderView = {
-  id: string;
   kind: "commander";
   option?: { url: string };
 };
 
 export type LoginView = {
-  id: string;
   kind: "/login";
   option?: never;
 };
 
 export type SignupView = {
-  id: string;
   kind: "/signup";
   option?: never;
 };
 
 export type LogoutView = {
-  id: string;
   kind: "/logout";
   option?: never;
 };
@@ -52,8 +47,6 @@ interface ViewContextType {
 
   session: Session | null;
   setSession: React.Dispatch<React.SetStateAction<Session | null>>;
-
-  generateViewId: () => string;
 }
 
 export function useAddViews() {

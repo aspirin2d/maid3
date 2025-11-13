@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useContext, useState } from "react";
-import { useAddViews, useSession, viewContext } from "./context.js";
+import { useCallback, useState } from "react";
+import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword } from "./validation.js";
 
 export default function Login({ url }: { url: string }) {
@@ -15,10 +15,6 @@ export default function Login({ url }: { url: string }) {
   const [active, setActive] = useState(true);
   const [, setSession] = useSession();
   const addViews = useAddViews();
-
-  const context = useContext(viewContext);
-  if (!context) throw new Error("viewContext is not available");
-  const { generateViewId } = context;
 
   useInput(
     (_input, key) => {
@@ -45,11 +41,10 @@ export default function Login({ url }: { url: string }) {
         setActive(false);
         addViews(
           {
-            id: generateViewId(),
             kind: "text",
             option: { label: "Login canceled", dimColor: true },
           },
-          { id: generateViewId(), kind: "commander" },
+          { kind: "commander" },
         );
       }
     },
@@ -106,13 +101,12 @@ export default function Login({ url }: { url: string }) {
         setActive(false);
         addViews(
           {
-            id: generateViewId(),
             kind: "text",
             option: {
               label: "Login as " + json.user.email,
             },
           },
-          { id: generateViewId(), kind: "commander" },
+          { kind: "commander" },
         );
       } catch (e) {
         clearTimeout(timeout);
@@ -133,7 +127,7 @@ export default function Login({ url }: { url: string }) {
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, setSession, addViews, generateViewId]);
+  }, [url, email, password, setSession, addViews]);
 
   if (!active) return null;
 

@@ -1,5 +1,5 @@
-import { useCallback, useContext, useMemo, useState } from "react";
-import { useAddViews, useSession, viewContext } from "./context.js";
+import { useCallback, useMemo, useState } from "react";
+import { useAddViews, useSession } from "./context.js";
 
 import Fuse from "fuse.js";
 
@@ -35,11 +35,8 @@ const authedCommands = [
 export default function Commander() {
   const addViews = useAddViews();
   const [session] = useSession();
-  const context = useContext(viewContext);
-  if (!context) throw new Error("viewContext is not available");
-  const { generateViewId } = context;
-
   const availableCommands = session ? authedCommands : guestCommands;
+
   const commandFuse = useMemo(
     () => new Fuse(availableCommands, { keys: ["id"] }),
     [availableCommands],
@@ -57,16 +54,19 @@ export default function Commander() {
 
     const q = searchList.length > 0 ? searchList[0] : null;
     if (!q) return;
+    console.log(q.item.id);
 
     switch (q.item.id) {
       case "/login":
       case "/signup":
       case "/logout":
-        addViews({ id: generateViewId(), kind: q.item.id });
+        addViews(
+          { kind: "text", option: { label: q.item.id, dimColor: true } },
+          { kind: q.item.id },
+        );
         return;
       case "/exit":
         addViews({
-          id: generateViewId(),
           kind: "text",
           option: { label: "Bye!", color: "green" },
         });
@@ -74,12 +74,7 @@ export default function Commander() {
     }
   }, [searchList, addViews]);
 
-  if (!active)
-    return (
-      <Text bold color="magenta">
-        {searchList[0]?.item.id ?? ""}
-      </Text>
-    );
+  if (!active) return null;
 
   return (
     <Box flexDirection="column">
