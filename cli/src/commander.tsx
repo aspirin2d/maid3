@@ -23,14 +23,6 @@ const guestCommands = [
 
 const authedCommands = [
   {
-    id: "/admin/users/list",
-    desc: "list all users (admin only)",
-  },
-  {
-    id: "/admin/users/ls",
-    desc: "list all users (admin only)",
-  },
-  {
     id: "/logout",
     desc: "logout of your current session",
   },
@@ -71,13 +63,6 @@ export default function Commander() {
         addViews(
           { kind: "text", option: { label: q.item.id, dimColor: true } },
           { kind: q.item.id },
-        );
-        return;
-      case "/admin/users/list":
-      case "/admin/users/ls":
-        addViews(
-          { kind: "text", option: { label: q.item.id, dimColor: true } },
-          { kind: "/admin/users/list" },
         );
         return;
       case "/exit":

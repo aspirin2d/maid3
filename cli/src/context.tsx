@@ -29,25 +29,12 @@ export type LogoutView = {
   option?: never;
 };
 
-export type AdminUsersListView = {
-  kind: "/admin/users/list";
-  option?: {
-    page?: number;
-    size?: number;
-    search?: string;
-    role?: string;
-    sort?: string;
-    direction?: "asc" | "desc";
-  };
-};
-
 export type View =
   | TextView
   | CommanderView
   | LoginView
   | SignupView
-  | LogoutView
-  | AdminUsersListView;
+  | LogoutView;
 
 type AddViewsOptions = {
   removeLast?: boolean;
