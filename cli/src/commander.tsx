@@ -1,115 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { useAddViews, useSession } from "./context.js";
+import { useAddViews, useSession, type View } from "./context.js";
+import { guestCommands, authedCommands, registry } from "./commands.js";
+import { parseCommand, requiresParams } from "./commandParser.js";
 
 import Fuse from "fuse.js";
-
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 
-type Command = {
-  id: string;
-  desc: string;
-  handler?: string;
-  params?: string[];
-};
-
-type ParsedCommand = {
-  command: Command;
-  params: Record<string, string>;
-};
-
-function parseCommand(input: string, commands: Command[]): ParsedCommand | null {
-  const inputParts = input.trim().split(/\s+/);
-
-  for (const command of commands) {
-    const commandParts = command.id.split(/\s+/);
-    const paramNames: string[] = [];
-    const paramValues: Record<string, string> = {};
-
-    let matches = true;
-    let inputIndex = 0;
-
-    for (let i = 0; i < commandParts.length; i++) {
-      const part = commandParts[i];
-
-      if (!part) {
-        continue;
-      }
-
-      if (part.startsWith("<") && part.endsWith(">")) {
-        const paramName = part.slice(1, -1);
-        paramNames.push(paramName);
-
-        if (inputIndex >= inputParts.length) {
-          matches = false;
-          break;
-        }
-
-        const value = inputParts[inputIndex];
-        if (!value) {
-          matches = false;
-          break;
-        }
-
-        paramValues[paramName] = value;
-        inputIndex++;
-      } else {
-        if (inputIndex >= inputParts.length || inputParts[inputIndex] !== part) {
-          matches = false;
-          break;
-        }
-        inputIndex++;
-      }
-    }
-
-    if (matches && inputIndex === inputParts.length) {
-      return {
-        command: { ...command, params: paramNames },
-        params: paramValues,
-      };
-    }
-  }
-
-  return null;
-}
-
-const guestCommands: Command[] = [
-  {
-    id: "/login",
-    desc: "login with your email and password",
-  },
-  {
-    id: "/signup",
-    desc: "signup with your email",
-  },
-  {
-    id: "/exit",
-    desc: "exit Maid3",
-  },
-];
-
-const authedCommands: Command[] = [
-  {
-    id: "/logout",
-    desc: "logout of your current session",
-  },
-  {
-    id: "/admin users list",
-    desc: "list all users (admin only)",
-    handler: "/admin/users/list",
-  },
-  {
-    id: "/admin users delete <user_id>",
-    desc: "delete a user by ID (admin only)",
-    handler: "/admin/users/delete",
-  },
-  {
-    id: "/exit",
-    desc: "exit Maid3",
-  },
-];
-
-const EXIT_DELAY_MS = 100; // Allow final render before exiting
+const COMMANDER_RESTART_DELAY_MS = 50;
 
 export default function Commander() {
   const addViews = useAddViews();
@@ -155,108 +53,83 @@ export default function Commander() {
   );
 
   const executeCommand = useCallback(
-    (command: Command, params: Record<string, string> = {}) => {
-      // Route command based on ID or handler
-      const commandId = command.handler || command.id;
+    (
+      handler: string,
+      params: Record<string, string> = {},
+      displayedCommand?: string
+    ) => {
+      // Wrapper to match CommandContext signature
+      const addViewsWrapper = (view: View, ...views: View[]) => {
+        addViews(view, ...views);
+      };
 
-      if (commandId === "/login" || commandId === "/signup" || commandId === "/logout") {
-        addViews(
-          { kind: "text", option: { label: command.id, dimColor: true } },
-          { kind: commandId as any },
-        );
-        return;
-      }
+      const executed = registry.execute(handler, params, {
+        addViews: addViewsWrapper,
+        setActive,
+        displayedCommand,
+      });
 
-      if (commandId === "/exit") {
+      if (!executed) {
         addViews({
           kind: "text",
-          option: { label: "Bye!", color: "green" },
+          option: { label: `Unknown command handler: ${handler}`, color: "red" },
         });
-        setTimeout(() => process.exit(0), EXIT_DELAY_MS);
-        return;
       }
-
-      if (commandId === "/admin/users/list") {
-        addViews(
-          { kind: "text", option: { label: command.id, dimColor: true } },
-          { kind: "/admin/users/list" },
-        );
-        return;
-      }
-
-      if (commandId === "/admin/users/delete") {
-        const userId = params["user_id"];
-        if (!userId) {
-          addViews({
-            kind: "text",
-            option: { label: "Error: user_id is required", color: "red" },
-          });
-          addViews({ kind: "commander" });
-          setTimeout(() => setActive(true), 50);
-          return;
-        }
-        addViews(
-          { kind: "text", option: { label: `/admin users delete ${userId}`, dimColor: true } },
-          { kind: "/admin/users/delete", option: { userId } },
-        );
-        return;
-      }
-
-      // Default case: unknown command
-      addViews({
-        kind: "text",
-        option: { label: `Unknown command: ${command.id}`, color: "red" },
-      });
     },
     [addViews],
+  );
+
+  const handleError = useCallback(
+    (message: string, color: "red" | "yellow" = "red") => {
+      addViews(
+        { kind: "text", option: { label: message, color } },
+        { kind: "commander" }
+      );
+      setTimeout(() => setActive(true), COMMANDER_RESTART_DELAY_MS);
+    },
+    [addViews]
   );
 
   const onSubmit = useCallback(() => {
     setActive(false);
 
-    // First, try to parse the query as a command with parameters
+    // Try exact command parsing first (handles parameters)
     const parsed = parseCommand(query, availableCommands);
     if (parsed) {
-      executeCommand(parsed.command, parsed.params);
+      executeCommand(parsed.command.handler, parsed.params, parsed.displayedCommand);
       return;
     }
 
     // Fall back to fuzzy search selection
     if (searchList.length === 0) {
-      addViews({
-        kind: "text",
-        option: { label: "No command found", color: "red" },
-      });
-      addViews({ kind: "commander" });
-      setTimeout(() => setActive(true), 50);
+      handleError("No command found");
       return;
     }
 
     const selectedCommand = searchList[selectedIndex];
     if (!selectedCommand) {
-      addViews({
-        kind: "text",
-        option: { label: "No command selected", color: "red" },
-      });
-      addViews({ kind: "commander" });
-      setTimeout(() => setActive(true), 50);
+      handleError("No command selected");
       return;
     }
 
     // Check if command requires parameters
-    const commandId = selectedCommand.item.id;
-    if (commandId.includes("<") && commandId.includes(">")) {
-      addViews({
-        kind: "text",
-        option: { label: `Command requires parameters: ${commandId}`, color: "yellow" },
-      });
-      addViews({ kind: "commander" });
-      setTimeout(() => setActive(true), 50);
+    if (requiresParams(selectedCommand.item.id)) {
+      handleError(
+        `Command requires parameters: ${selectedCommand.item.id}`,
+        "yellow"
+      );
       return;
     }
 
-    executeCommand(selectedCommand.item);
-  }, [query, availableCommands, searchList, selectedIndex, addViews, executeCommand]);
+    executeCommand(selectedCommand.item.handler, {}, selectedCommand.item.id);
+  }, [
+    query,
+    availableCommands,
+    searchList,
+    selectedIndex,
+    executeCommand,
+    handleError,
+  ]);
 
   if (!active) return null;
 
