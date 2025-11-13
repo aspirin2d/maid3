@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -334,6 +334,19 @@ const handleAdminApiError = (
   return c.json({ error: message }, normalizedStatus);
 };
 
+/**
+ * Count the number of admin users in the system
+ * Used to prevent removing the last admin
+ */
+const countAdmins = async (): Promise<number> => {
+  const result = await db
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(user)
+    .where(eq(user.role, "admin"));
+
+  return result[0]?.count ?? 0;
+};
+
 const createAdminRouter = () => {
   const router = new Hono<AdminEnv>();
 
@@ -422,6 +435,7 @@ const createAdminRouter = () => {
 
   router.patch("/u/:id", async (c) => {
     const userId = c.req.param("id");
+    const currentUser = c.get("user")!; // Safe due to requireAdmin middleware
     const body = await parseJsonBody(c, updateUserSchema);
     if (!body.success) return body.response;
 
@@ -434,6 +448,47 @@ const createAdminRouter = () => {
       typeof password === "undefined"
     ) {
       return c.json({ error: "Provide at least one field to update" }, 400);
+    }
+
+    // Prevent self-role-removal: admin cannot remove their own admin role
+    if (userId === currentUser.id && typeof role !== "undefined") {
+      const newRoles = Array.isArray(role) ? role : [role];
+      if (!newRoles.includes("admin")) {
+        return c.json(
+          { error: "Cannot remove your own admin role" },
+          400,
+        );
+      }
+    }
+
+    // Prevent removing the last admin's role
+    if (typeof role !== "undefined") {
+      const newRoles = Array.isArray(role) ? role : [role];
+      if (!newRoles.includes("admin")) {
+        try {
+          // Get the target user's current role from database
+          const targetUsers = await db
+            .select({ role: user.role })
+            .from(user)
+            .where(eq(user.id, userId))
+            .limit(1);
+
+          const targetUser = targetUsers[0];
+
+          // If target is currently an admin, check if they're the last one
+          if (targetUser?.role === "admin") {
+            const adminCount = await countAdmins();
+            if (adminCount === 1) {
+              return c.json(
+                { error: "Cannot remove the last admin's role" },
+                400,
+              );
+            }
+          }
+        } catch (error) {
+          return handleAdminApiError(c, error, "check admin count");
+        }
+      }
     }
 
     try {
@@ -472,6 +527,40 @@ const createAdminRouter = () => {
 
   router.delete("/u/:id", async (c) => {
     const userId = c.req.param("id");
+    const currentUser = c.get("user")!; // Safe due to requireAdmin middleware
+
+    // Prevent self-deletion: admin cannot delete their own account
+    if (userId === currentUser.id) {
+      return c.json(
+        { error: "Cannot delete your own account" },
+        400,
+      );
+    }
+
+    // Prevent deleting the last admin
+    try {
+      // Get the target user's role from database
+      const targetUsers = await db
+        .select({ role: user.role })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+
+      const targetUser = targetUsers[0];
+
+      // If target is an admin, check if they're the last one
+      if (targetUser?.role === "admin") {
+        const adminCount = await countAdmins();
+        if (adminCount === 1) {
+          return c.json(
+            { error: "Cannot delete the last admin account" },
+            400,
+          );
+        }
+      }
+    } catch (error) {
+      return handleAdminApiError(c, error, "check user before deletion");
+    }
 
     try {
       const result = await auth.api.removeUser({
