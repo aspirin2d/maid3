@@ -6,33 +6,53 @@ import { viewContext } from "./context.js";
 export default function Login({ url }: { url: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [activeField, setActiveField] = useState<"email" | "password">("email");
+  const [step, setStep] = useState<"email" | "password">("email");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [active, setActive] = useState(true);
-
   const context = useContext(viewContext);
 
-  useInput((_input, key) => {
-    if (key.tab) {
-      setActiveField((prev) => {
-        if (key.shift) {
-          return prev === "email" ? "password" : "email";
-        }
-        return prev === "password" ? "email" : "password";
-      });
-    }
+  useInput(
+    (_input, key) => {
+      if (!active) return;
 
-    if (key.escape) {
-      setActive(false);
-      if (context) context.setViews([...context.views, { kind: "commander" }]);
-    }
-  });
+      if (key.shift && key.tab && step === "password") {
+        setStep("email");
+        setError("");
+        return;
+      }
+
+      if (key.escape) {
+        setActive(false);
+        if (context)
+          context.setViews([
+            ...context.views,
+            {
+              kind: "text",
+              option: { label: "Login canceled", dimColor: true },
+            },
+            { kind: "commander" },
+          ]);
+      }
+    },
+    { isActive: active },
+  );
 
   const login = useCallback(async () => {
     try {
+      if (!email) {
+        setError("Email is required");
+        setStep("email");
+        return;
+      }
+      if (!password) {
+        setError("Password is required");
+        setStep("password");
+        return;
+      }
+
       setLoading(true);
       setError("");
 
@@ -46,7 +66,6 @@ export default function Login({ url }: { url: string }) {
           password,
         }),
       });
-      // const authToken = res.headers.get("set-auth-token");
       if (!res.ok) {
         let message = "Failed to login";
         try {
@@ -60,33 +79,27 @@ export default function Login({ url }: { url: string }) {
 
       if (context) {
         context.setSession({ email: json.user.email, bearToken: token ?? "" });
-        context.setViews([...context.views, { kind: "commander" }]);
+        context.setViews([
+          ...context.views,
+          {
+            kind: "text",
+            option: {
+              label: "Login as " + json.user.email,
+            },
+          },
+          { kind: "commander" },
+        ]);
       }
+      setActive(false);
     } catch (e: any) {
       setError(e.message ?? "Unkown error");
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, setLoading, context]);
+  }, [url, email, password, context, setStep, setError]);
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;
-  }
-
-  if (context && context.session) {
-    return (
-      <Text bold dimColor>
-        Login as {context.session.email}
-      </Text>
-    );
-  }
-
-  if (!active) {
-    return (
-      <Text bold dimColor>
-        Login canceld
-      </Text>
-    );
   }
 
   return (
@@ -95,26 +108,44 @@ export default function Login({ url }: { url: string }) {
         <Text bold dimColor>
           Email:
         </Text>
-        <TextInput
-          value={email}
-          onChange={setEmail}
-          placeholder="abc@abc.com"
-          focus={activeField === "email"}
-          onSubmit={() => setActiveField("password")}
-        />
+        {step === "email" ? (
+          <TextInput
+            value={email}
+            onChange={setEmail}
+            placeholder="abc@abc.com"
+            focus
+            onSubmit={() => {
+              if (!email) {
+                setError("Email is required");
+                return;
+              }
+              setError("");
+              setStep("password");
+            }}
+          />
+        ) : (
+          <Text>{email}</Text>
+        )}
       </Box>
-      <Box columnGap={1}>
-        <Text bold dimColor>
-          Password:
-        </Text>
-        <TextInput
-          value={password}
-          onChange={setPassword}
-          mask="*"
-          focus={activeField === "password"}
-          onSubmit={login}
-        />
-      </Box>
+
+      {step === "password" && (
+        <Box columnGap={1}>
+          <Text bold dimColor>
+            Password:
+          </Text>
+          <TextInput
+            value={password}
+            onChange={setPassword}
+            mask="*"
+            focus
+            onSubmit={login}
+          />
+        </Box>
+      )}
+
+      {step === "password" && (
+        <Text dimColor>Press Shift+Tab to edit email, Esc to cancel.</Text>
+      )}
 
       {error && <Text color="red">{error}</Text>}
     </Box>
