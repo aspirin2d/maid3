@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState, useContext } from "react";
-import { viewContext, addViews } from "./context.js";
+import { useCallback, useState } from "react";
+import { useAddViews, useSession } from "./context.js";
 
 export default function Signup({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -13,7 +13,8 @@ export default function Signup({ url }: { url: string }) {
   const [error, setError] = useState("");
 
   const [active, setActive] = useState(true);
-  const context = useContext(viewContext);
+  const [, setSession] = useSession();
+  const addViews = useAddViews();
 
   useInput(
     (_input, key) => {
@@ -30,17 +31,15 @@ export default function Signup({ url }: { url: string }) {
       }
 
       if (key.escape) {
+        addViews(
+          {
+            kind: "text",
+            option: { label: "Signup canceled", dimColor: true },
+          },
+          { kind: "commander" },
+        );
+
         setActive(false);
-        if (context)
-          context.setViews(
-            addViews(context.views, [
-              {
-                kind: "text",
-                option: { label: "Signup canceled", dimColor: true },
-              },
-              { kind: "commander" },
-            ])
-          );
       }
     },
     { isActive: active },
@@ -101,20 +100,19 @@ export default function Signup({ url }: { url: string }) {
       const json = await res.json();
       const token = res.headers.get("set-auth-token");
 
-      if (context) {
-        context.setSession({ email: json.user.email, bearerToken: token ?? "" });
-        context.setViews(
-          addViews(context.views, [
-            {
-              kind: "text",
-              option: {
-                label: "Signed up as " + json.user.email,
-              },
-            },
-            { kind: "commander" },
-          ])
-        );
-      }
+      setSession({
+        email: json.user.email,
+        bearerToken: token ?? "",
+      });
+      addViews(
+        {
+          kind: "text",
+          option: {
+            label: "Signed up as " + json.user.email,
+          },
+        },
+        { kind: "commander" },
+      );
       setActive(false);
     } catch (e: any) {
       if (e instanceof TypeError) {
@@ -125,7 +123,9 @@ export default function Signup({ url }: { url: string }) {
     } finally {
       setLoading(false);
     }
-  }, [url, name, email, password, context]);
+  }, [url, name, email, password, setSession, addViews, setStep, setError]);
+
+  if (!active) return null;
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;

@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState, useContext } from "react";
-import { viewContext, addViews } from "./context.js";
+import { useCallback, useState } from "react";
+import { useAddViews, useSession } from "./context.js";
 
 export default function Login({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -12,7 +12,8 @@ export default function Login({ url }: { url: string }) {
   const [error, setError] = useState("");
 
   const [active, setActive] = useState(true);
-  const context = useContext(viewContext);
+  const [, setSession] = useSession();
+  const addViews = useAddViews();
 
   useInput(
     (_input, key) => {
@@ -26,16 +27,13 @@ export default function Login({ url }: { url: string }) {
 
       if (key.escape) {
         setActive(false);
-        if (context)
-          context.setViews(
-            addViews(context.views, [
-              {
-                kind: "text",
-                option: { label: "Login canceled", dimColor: true },
-              },
-              { kind: "commander" },
-            ])
-          );
+        addViews(
+          {
+            kind: "text",
+            option: { label: "Login canceled", dimColor: true },
+          },
+          { kind: "commander" },
+        );
       }
     },
     { isActive: active },
@@ -90,21 +88,20 @@ export default function Login({ url }: { url: string }) {
       const json = await res.json();
       const token = res.headers.get("set-auth-token");
 
-      if (context) {
-        context.setSession({ email: json.user.email, bearerToken: token ?? "" });
-        context.setViews(
-          addViews(context.views, [
-            {
-              kind: "text",
-              option: {
-                label: "Login as " + json.user.email,
-              },
-            },
-            { kind: "commander" },
-          ])
-        );
-      }
+      setSession({
+        email: json.user.email,
+        bearerToken: token ?? "",
+      });
       setActive(false);
+      addViews(
+        {
+          kind: "text",
+          option: {
+            label: "Login as " + json.user.email,
+          },
+        },
+        { kind: "commander" },
+      );
     } catch (e: any) {
       if (e instanceof TypeError) {
         setError("Network error: Cannot connect to server");
@@ -114,7 +111,9 @@ export default function Login({ url }: { url: string }) {
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, context, setStep, setError]);
+  }, [url, email, password, setStep, setError, setSession, addViews]);
+
+  if (!active) return null;
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;

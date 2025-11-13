@@ -1,4 +1,4 @@
-import React, { createContext } from "react";
+import React, { createContext, useCallback, useContext } from "react";
 
 export type TextView = {
   kind: "text";
@@ -24,7 +24,17 @@ export type SignupView = {
   option?: never;
 };
 
-export type View = TextView | CommanderView | LoginView | SignupView;
+export type LogoutView = {
+  kind: "/logout";
+  option?: never;
+};
+
+export type View =
+  | TextView
+  | CommanderView
+  | LoginView
+  | SignupView
+  | LogoutView;
 
 export type Session = {
   bearerToken: string;
@@ -39,21 +49,24 @@ interface ViewContextType {
   setSession: React.Dispatch<React.SetStateAction<Session | null>>;
 }
 
-export const viewContext = createContext<ViewContextType | null>(null);
+export function useAddViews() {
+  const context = useContext(viewContext);
+  if (!context) throw new Error("viewContext is not available");
 
-// Maximum number of text views to keep in history
-const MAX_HISTORY_VIEWS = 5;
-
-// Helper function to manage view stack properly
-export function addViews(currentViews: View[], newViews: View[]): View[] {
-  // Filter out the last interactive view (commander, login, signup)
-  const historyViews = currentViews.filter(
-    (v) => v.kind === "text"
+  return useCallback(
+    (...views: View[]) => {
+      if (views.length === 0) return;
+      context.setViews((prev) => [...prev, ...views]);
+    },
+    [context],
   );
-
-  // Keep only the most recent history views
-  const trimmedHistory = historyViews.slice(-MAX_HISTORY_VIEWS);
-
-  // Combine trimmed history with new views
-  return [...trimmedHistory, ...newViews];
 }
+
+export function useSession() {
+  const context = useContext(viewContext);
+  if (!context) throw new Error("viewContext is not available");
+
+  return [context.session, context.setSession] as const;
+}
+
+export const viewContext = createContext<ViewContextType | null>(null);

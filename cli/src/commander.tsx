@@ -1,12 +1,12 @@
-import { useCallback, useContext, useState, useMemo } from "react";
-import { viewContext, addViews } from "./context.js";
+import { useCallback, useState, useMemo } from "react";
+import { useAddViews, useSession } from "./context.js";
 
 import Fuse from "fuse.js";
 
 import TextInput from "ink-text-input";
 import { Box, Text } from "ink";
 
-const authCommands = [
+const guestCommands = [
   {
     id: "/login",
     desc: "login with your email and password",
@@ -15,48 +15,60 @@ const authCommands = [
     id: "/signup",
     desc: "signup with your email",
   },
-];
-
-const generalCommands = [
   {
     id: "/exit",
     desc: "exit Maid3",
   },
 ];
 
-const allCommands = [...authCommands, ...generalCommands];
-const commandFuse = new Fuse(allCommands, { keys: ["id"] });
+const authedCommands = [
+  {
+    id: "/logout",
+    desc: "logout of your current session",
+  },
+  {
+    id: "/exit",
+    desc: "exit Maid3",
+  },
+];
 
 export default function Commander() {
-  const context = useContext(viewContext);
+  const addViews = useAddViews();
+  const [session] = useSession();
+
+  const availableCommands = session ? authedCommands : guestCommands;
+  const commandFuse = useMemo(
+    () => new Fuse(availableCommands, { keys: ["id"] }),
+    [availableCommands],
+  );
 
   const [active, setActive] = useState(true);
   const [query, setQuery] = useState("");
 
   const searchList = useMemo(() => {
     return commandFuse.search(query); // Perform search based on the current query
-  }, [query]);
+  }, [query, commandFuse]);
 
   const onSubmit = useCallback(() => {
     setActive(false);
 
     const q = searchList.length > 0 ? searchList[0] : null;
-    if (context && q) {
-      switch (q.item.id) {
-        case "/login":
-        case "/signup":
-          context.setViews(addViews(context.views, [{ kind: q.item.id }]));
-          return;
-        case "/exit":
-          context.setViews(
-            addViews(context.views, [
-              { kind: "text", option: { label: "Bye!", color: "green" } },
-            ])
-          );
-          setTimeout(() => process.exit(0), 100);
-      }
+    if (!q) return;
+
+    switch (q.item.id) {
+      case "/login":
+      case "/signup":
+      case "/logout":
+        addViews({ kind: q.item.id });
+        return;
+      case "/exit":
+        addViews({
+          kind: "text",
+          option: { label: "Bye!", color: "green" },
+        });
+        setTimeout(() => process.exit(0), 100);
     }
-  }, [searchList, context]);
+  }, [searchList, addViews]);
 
   if (!active)
     return (
