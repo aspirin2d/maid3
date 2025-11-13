@@ -13,58 +13,53 @@ export default function Signup({ url }: { url: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [active, setActive] = useState(true);
   const [, setSession] = useSession();
   const addViews = useAddViews();
 
-  useInput(
-    (_input, key) => {
-      if (!active) return;
-
-      if (key.tab && !key.shift) {
-        setError("");
-        if (step === "name") {
-          const nameError = validateName(name);
-          if (nameError) {
-            setError(nameError);
-          } else {
-            setStep("email");
-          }
-        } else if (step === "email") {
-          const emailError = validateEmail(email);
-          if (emailError) {
-            setError(emailError);
-          } else {
-            setStep("password");
-          }
-        }
-        return;
-      }
-
-      if (key.shift && key.tab) {
-        setError("");
-        if (step === "password") {
+  useInput((_input, key) => {
+    if (key.tab && !key.shift) {
+      setError("");
+      if (step === "name") {
+        const nameError = validateName(name);
+        if (nameError) {
+          setError(nameError);
+        } else {
           setStep("email");
-        } else if (step === "email") {
-          setStep("name");
         }
-        return;
+      } else if (step === "email") {
+        const emailError = validateEmail(email);
+        if (emailError) {
+          setError(emailError);
+        } else {
+          setStep("password");
+        }
       }
+      return;
+    }
 
-      if (key.escape) {
-        addViews(
+    if (key.shift && key.tab) {
+      setError("");
+      if (step === "password") {
+        setStep("email");
+      } else if (step === "email") {
+        setStep("name");
+      }
+      return;
+    }
+
+    if (key.escape) {
+      addViews(
+        [
           {
             kind: "text",
             option: { label: "Signup canceled", dimColor: true },
           },
           { kind: "commander" },
-        );
-
-        setActive(false);
-      }
-    },
-    { isActive: active },
-  );
+        ],
+        1,
+      );
+    }
+  });
 
   const signup = useCallback(async () => {
     try {
@@ -126,23 +121,25 @@ export default function Signup({ url }: { url: string }) {
           bearerToken: token ?? "",
         });
         addViews(
-          {
-            kind: "text",
-            option: {
-              label: "Signed up as " + json.user.email,
+          [
+            {
+              kind: "text",
+              option: {
+                label: "Signed up as " + json.user.email,
+              },
             },
-          },
-          { kind: "commander" },
+            { kind: "commander" },
+          ],
+          1,
         );
-        setActive(false);
       } catch (e) {
         clearTimeout(timeout);
         throw e;
       }
     } catch (e) {
       if (e instanceof Error) {
-        if (e.name === 'AbortError') {
-          setError('Request timeout - server not responding');
+        if (e.name === "AbortError") {
+          setError("Request timeout - server not responding");
         } else if (e instanceof TypeError) {
           setError("Network error: Cannot connect to server");
         } else {
@@ -155,8 +152,6 @@ export default function Signup({ url }: { url: string }) {
       setLoading(false);
     }
   }, [url, name, email, password, setSession, addViews]);
-
-  if (!active) return null;
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;
@@ -236,7 +231,9 @@ export default function Signup({ url }: { url: string }) {
       )}
 
       {step === "email" && (
-        <Text dimColor>Press Tab to continue, Shift+Tab to go back, Esc to cancel.</Text>
+        <Text dimColor>
+          Press Tab to continue, Shift+Tab to go back, Esc to cancel.
+        </Text>
       )}
 
       {step === "password" && (

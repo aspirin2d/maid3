@@ -12,44 +12,40 @@ export default function Login({ url }: { url: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [active, setActive] = useState(true);
   const [, setSession] = useSession();
   const addViews = useAddViews();
 
-  useInput(
-    (_input, key) => {
-      if (!active) return;
-
-      if (key.tab && !key.shift && step === "email") {
-        const emailError = validateEmail(email);
-        if (emailError) {
-          setError(emailError);
-        } else {
-          setError("");
-          setStep("password");
-        }
-        return;
-      }
-
-      if (key.shift && key.tab && step === "password") {
-        setStep("email");
+  useInput((_input, key) => {
+    if (key.tab && !key.shift && step === "email") {
+      const emailError = validateEmail(email);
+      if (emailError) {
+        setError(emailError);
+      } else {
         setError("");
-        return;
+        setStep("password");
       }
+      return;
+    }
 
-      if (key.escape) {
-        setActive(false);
-        addViews(
+    if (key.shift && key.tab && step === "password") {
+      setStep("email");
+      setError("");
+      return;
+    }
+
+    if (key.escape) {
+      addViews(
+        [
           {
             kind: "text",
             option: { label: "Login canceled", dimColor: true },
           },
           { kind: "commander" },
-        );
-      }
-    },
-    { isActive: active },
-  );
+        ],
+        -1,
+      );
+    }
+  });
 
   const login = useCallback(async () => {
     try {
@@ -98,15 +94,17 @@ export default function Login({ url }: { url: string }) {
           email: json.user.email,
           bearerToken: token ?? "",
         });
-        setActive(false);
         addViews(
-          {
-            kind: "text",
-            option: {
-              label: "Login as " + json.user.email,
+          [
+            {
+              kind: "text",
+              option: {
+                label: "Login as " + json.user.email,
+              },
             },
-          },
-          { kind: "commander" },
+            { kind: "commander" },
+          ],
+          1,
         );
       } catch (e) {
         clearTimeout(timeout);
@@ -114,8 +112,8 @@ export default function Login({ url }: { url: string }) {
       }
     } catch (e) {
       if (e instanceof Error) {
-        if (e.name === 'AbortError') {
-          setError('Request timeout - server not responding');
+        if (e.name === "AbortError") {
+          setError("Request timeout - server not responding");
         } else if (e instanceof TypeError) {
           setError("Network error: Cannot connect to server");
         } else {
@@ -128,8 +126,6 @@ export default function Login({ url }: { url: string }) {
       setLoading(false);
     }
   }, [url, email, password, setSession, addViews]);
-
-  if (!active) return null;
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;

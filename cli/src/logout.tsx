@@ -7,13 +7,13 @@ export default function Logout() {
 
   useEffect(() => {
     setSession(null);
-    addViews(
+    addViews([
       {
         kind: "text",
         option: { label: "Logged out", dimColor: true },
       },
       { kind: "commander" },
-    );
+    ]);
   }, []);
 
   return null;

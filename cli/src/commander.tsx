@@ -42,7 +42,6 @@ export default function Commander() {
     [availableCommands],
   );
 
-  const [active, setActive] = useState(true);
   const [query, setQuery] = useState("");
 
   const searchList = useMemo(() => {
@@ -50,31 +49,31 @@ export default function Commander() {
   }, [query, commandFuse]);
 
   const onSubmit = useCallback(() => {
-    setActive(false);
-
     const q = searchList.length > 0 ? searchList[0] : null;
     if (!q) return;
-    console.log(q.item.id);
 
     switch (q.item.id) {
       case "/login":
       case "/signup":
       case "/logout":
         addViews(
-          { kind: "text", option: { label: q.item.id, dimColor: true } },
-          { kind: q.item.id },
+          [
+            { kind: "text", option: { label: q.item.id, dimColor: true } },
+            { kind: q.item.id },
+          ],
+          1,
         );
         return;
       case "/exit":
-        addViews({
-          kind: "text",
-          option: { label: "Bye!", color: "green" },
-        });
+        addViews([
+          {
+            kind: "text",
+            option: { label: "Bye!", color: "green" },
+          },
+        ]);
         setTimeout(() => process.exit(0), 100);
     }
   }, [searchList, addViews]);
-
-  if (!active) return null;
 
   return (
     <Box flexDirection="column">

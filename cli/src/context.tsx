@@ -54,9 +54,19 @@ export function useAddViews() {
   if (!context) throw new Error("viewContext is not available");
 
   return useCallback(
-    (...views: View[]) => {
-      if (views.length === 0) return;
-      context.setViews((prev) => [...prev, ...views]);
+    (views: View[], remove: number = 0) => {
+      context.setViews((prev) => {
+        let next = prev;
+
+        if (remove === -1) {
+          next = [];
+        } else if (remove > 0) {
+          next = prev.slice(0, Math.max(0, prev.length - remove));
+        }
+
+        if (views.length === 0) return next;
+        return [...next, ...views];
+      });
     },
     [context],
   );
