@@ -64,6 +64,7 @@ App
 **Unique Design:** Instead of traditional routing, the CLI uses an append-only view system that creates a scrolling terminal history.
 
 **How it works:**
+
 ```typescript
 // Views are appended to an array
 const [views, setViews] = useState<View[]>([
@@ -89,11 +90,13 @@ return views.map(view => {
 ```
 
 **Benefits:**
+
 - Creates a natural terminal experience (scroll back through history)
 - Simple state management (no routing library needed)
 - Easy to implement "back to command palette" flows
 
 **View Types:**
+
 - `TextView` - Static text messages (status, errors, confirmations)
 - `CommanderView` - Interactive command palette
 - `LoginView` - Login form
@@ -103,6 +106,7 @@ return views.map(view => {
 ### 2. React Context State Management
 
 **Context Definition (context.tsx:49-56):**
+
 ```typescript
 interface ViewContextType {
   views: View[];
@@ -114,12 +118,13 @@ interface ViewContextType {
 ```
 
 **Custom Hooks:**
+
 ```typescript
 // Add new views to the history
 const addViews = useAddViews();
 addViews(
   { id: generateViewId(), kind: "text", option: { label: "Logging in..." } },
-  { id: generateViewId(), kind: "/login" }
+  { id: generateViewId(), kind: "/login" },
 );
 
 // Access/modify session
@@ -150,17 +155,21 @@ function generateViewId(): string {
 **Purpose:** Validate arguments, enforce HTTPS, bootstrap React app
 
 **Key Features:**
+
 - Requires `--url` flag for API base URL
 - Enforces HTTPS for non-localhost connections
 - Handles top-level errors with user-friendly messages
 - Waits for Ink app to exit before terminating process
 
 **HTTPS Validation (cli.tsx:33-40):**
+
 ```typescript
-if (!url.startsWith('https://') &&
-    !url.startsWith('http://localhost') &&
-    !url.startsWith('http://127.0.0.1')) {
-  console.error('[Error] URL must use HTTPS for non-localhost connections');
+if (
+  !url.startsWith("https://") &&
+  !url.startsWith("http://localhost") &&
+  !url.startsWith("http://127.0.0.1")
+) {
+  console.error("[Error] URL must use HTTPS for non-localhost connections");
   process.exit(1);
 }
 ```
@@ -174,6 +183,7 @@ if (!url.startsWith('https://') &&
 #### Session Storage (app.tsx:35-50)
 
 **Security Features:**
+
 - File permissions set to **0600** (owner-only read/write)
 - Error logging instead of silent failures
 - Type-safe session validation
@@ -187,11 +197,13 @@ function persistSessionToFile(session: Session | null) {
     }
     writeFileSync(sessionFilePath, JSON.stringify(session), {
       mode: 0o600, // Read/write for owner only
-      encoding: 'utf-8'
+      encoding: "utf-8",
     });
   } catch (err) {
-    console.error('[Warning] Failed to save session:',
-      err instanceof Error ? err.message : String(err));
+    console.error(
+      "[Warning] Failed to save session:",
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }
 ```
@@ -199,6 +211,7 @@ function persistSessionToFile(session: Session | null) {
 #### Session Validation (app.tsx:82-104)
 
 **Startup Validation:**
+
 - Loads session from `~/.maid_session`
 - Validates token with `/auth/get-session` endpoint
 - Clears expired sessions automatically
@@ -209,21 +222,27 @@ useEffect(() => {
   if (!session) return;
 
   fetch(`${url}/auth/get-session`, {
-    headers: { 'Authorization': `Bearer ${session.bearerToken}` }
+    headers: { Authorization: `Bearer ${session.bearerToken}` },
   })
-  .then(res => {
-    if (!res.ok) {
-      setSession(null);
-      setViews(prev => [...prev, {
-        id: generateViewId(),
-        kind: 'text',
-        option: { label: 'Session expired, please login again', color: 'yellow' }
-      }]);
-    }
-  })
-  .catch(() => {
-    // Network error - keep session, will fail on next request
-  });
+    .then((res) => {
+      if (!res.ok) {
+        setSession(null);
+        setViews((prev) => [
+          ...prev,
+          {
+            id: generateViewId(),
+            kind: "text",
+            option: {
+              label: "Session expired, please login again",
+              color: "yellow",
+            },
+          },
+        ]);
+      }
+    })
+    .catch(() => {
+      // Network error - keep session, will fail on next request
+    });
 }, []); // Run once on mount
 ```
 
@@ -236,21 +255,24 @@ useEffect(() => {
 #### Command System
 
 **Guest Commands (unauthenticated):**
+
 - `/login` - Authenticate with email/password
 - `/signup` - Create new account
 - `/exit` - Exit application
 
 **Authenticated Commands:**
+
 - `/logout` - Clear session and sign out
 - `/exit` - Exit application
 
 #### Fuzzy Search Implementation
 
 **Uses Fuse.js for intelligent matching:**
+
 ```typescript
 const commandFuse = useMemo(
   () => new Fuse(availableCommands, { keys: ["id"] }),
-  [availableCommands]
+  [availableCommands],
 );
 
 const searchList = useMemo(() => {
@@ -259,6 +281,7 @@ const searchList = useMemo(() => {
 ```
 
 **UI Features:**
+
 - First result is always highlighted (cyan color)
 - Shows command description alongside command ID
 - Real-time filtering as you type
@@ -298,12 +321,14 @@ const onSubmit = useCallback(() => {
 #### Progressive Disclosure Pattern
 
 **Step 1: Email**
+
 - Validates email format using regex
 - Shows "Press Tab to continue" hint
 - Tab or Enter advances to password
 
 **Step 2: Password**
-- Masked input (mask="*")
+
+- Masked input (mask="\*")
 - Minimum 8 characters
 - Shows "Press Shift+Tab to edit email" hint
 - Enter submits the form
@@ -311,42 +336,50 @@ const onSubmit = useCallback(() => {
 #### Keyboard Navigation (login.tsx:23-57)
 
 ```typescript
-useInput((_input, key) => {
-  if (!active) return;
+useInput(
+  (_input, key) => {
+    if (!active) return;
 
-  // Tab moves forward with validation
-  if (key.tab && !key.shift && step === "email") {
-    const emailError = validateEmail(email);
-    if (emailError) {
-      setError(emailError);
-    } else {
-      setError("");
-      setStep("password");
+    // Tab moves forward with validation
+    if (key.tab && !key.shift && step === "email") {
+      const emailError = validateEmail(email);
+      if (emailError) {
+        setError(emailError);
+      } else {
+        setError("");
+        setStep("password");
+      }
+      return;
     }
-    return;
-  }
 
-  // Shift+Tab moves backward
-  if (key.shift && key.tab && step === "password") {
-    setStep("email");
-    setError("");
-    return;
-  }
+    // Shift+Tab moves backward
+    if (key.shift && key.tab && step === "password") {
+      setStep("email");
+      setError("");
+      return;
+    }
 
-  // Escape cancels
-  if (key.escape) {
-    setActive(false);
-    addViews(
-      { id: generateViewId(), kind: "text", option: { label: "Login canceled" } },
-      { id: generateViewId(), kind: "commander" }
-    );
-  }
-}, { isActive: active });
+    // Escape cancels
+    if (key.escape) {
+      setActive(false);
+      addViews(
+        {
+          id: generateViewId(),
+          kind: "text",
+          option: { label: "Login canceled" },
+        },
+        { id: generateViewId(), kind: "commander" },
+      );
+    }
+  },
+  { isActive: active },
+);
 ```
 
 #### Login API Call (login.tsx:59-136)
 
 **Security Features:**
+
 - 10-second request timeout using AbortController
 - Generic error message ("Invalid email or password") to prevent username enumeration
 - Distinguishes network errors from authentication failures
@@ -377,8 +410,8 @@ try {
   // ... add success views
 } catch (e) {
   if (e instanceof Error) {
-    if (e.name === 'AbortError') {
-      setError('Request timeout - server not responding');
+    if (e.name === "AbortError") {
+      setError("Request timeout - server not responding");
     } else if (e instanceof TypeError) {
       setError("Network error: Cannot connect to server");
     } else {
@@ -399,23 +432,27 @@ try {
 #### Progressive Disclosure Pattern
 
 **Step 1: Name**
+
 - Required field
 - Tab or Enter advances
 
 **Step 2: Email**
+
 - Email format validation
 - Tab or Enter advances
 - Shift+Tab goes back to name
 
 **Step 3: Password**
+
 - Minimum 8 characters
-- Masked input (mask="*")
+- Masked input (mask="\*")
 - Enter submits form
 - Shift+Tab goes back to email
 
 #### Enhanced Keyboard Navigation (signup.tsx:24-72)
 
 **Tab advances with validation:**
+
 ```typescript
 if (key.tab && !key.shift) {
   setError("");
@@ -439,6 +476,7 @@ if (key.tab && !key.shift) {
 ```
 
 **Shift+Tab goes backward:**
+
 ```typescript
 if (key.shift && key.tab) {
   setError("");
@@ -454,6 +492,7 @@ if (key.shift && key.tab) {
 #### Signup API Call (signup.tsx:74-163)
 
 **Similar security to login:**
+
 - 10-second request timeout
 - Shows specific error messages from backend (appropriate for signup)
 - Network error handling
@@ -466,6 +505,7 @@ if (key.shift && key.tab) {
 **Purpose:** Centralized validation logic to avoid duplication
 
 **Exports:**
+
 ```typescript
 export const MIN_PASSWORD_LENGTH = 8;
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -491,10 +531,12 @@ export function validateName(name: string): string | null {
 ```
 
 **Benefits:**
+
 - Single source of truth for validation rules
 - Easy to update validation logic
 - Consistent error messages
 - Testable in isolation
+- Do not add markdown files
 
 ---
 
@@ -503,31 +545,37 @@ export function validateName(name: string): string | null {
 ### Session Security
 
 ✅ **File Permissions** (app.tsx:41-44)
+
 - Sessions saved with `mode: 0o600`
 - Only owner can read/write
 - Prevents token theft from other users on system
 
 ✅ **Startup Validation** (app.tsx:82-104)
+
 - Validates token on every CLI launch
 - Clears expired sessions automatically
 - Shows user-friendly expiration message
 
 ✅ **Request Timeouts** (login.tsx:78-79, signup.tsx:100-101)
+
 - 10-second timeout using AbortController
 - Prevents hanging connections
 - Distinguishes timeout from network errors
 
 ✅ **Information Leakage Prevention** (login.tsx:95-97)
+
 - Generic "Invalid email or password" message
 - Prevents username enumeration attacks
 - Signup errors can be specific (no security risk)
 
 ✅ **No Silent Failures** (app.tsx:45-49)
+
 - All errors logged with console.error
 - Helps with debugging
 - Users notified of issues
 
 ✅ **Type Safety**
+
 - No `any` types in error handling
 - Proper `instanceof` checks
 - Clear error type discrimination
@@ -535,11 +583,13 @@ export function validateName(name: string): string | null {
 ### Network Security
 
 ✅ **HTTPS Enforcement** (cli.tsx:33-40)
+
 - Production URLs must use HTTPS
 - Localhost exempt for development
 - Clear error message for violations
 
 ✅ **Bearer Token Authentication**
+
 - Tokens sent via `Authorization` header
 - Never logged or exposed in URL
 - Stored securely in session file
@@ -551,11 +601,13 @@ export function validateName(name: string): string | null {
 ### TypeScript Strictness
 
 ✅ **No `any` Types**
+
 - All error handling uses proper types
 - Type guards with `instanceof`
 - Discriminated unions for Views
 
 ✅ **Strict Mode Enabled**
+
 - Catches common errors at compile time
 - Enforces null checks
 - Better IDE support
@@ -563,16 +615,19 @@ export function validateName(name: string): string | null {
 ### React Best Practices
 
 ✅ **Stable Keys** (app.tsx:108-129)
+
 - Views use unique IDs
 - Prevents React reconciliation issues
 - Generated with timestamp + counter
 
 ✅ **Proper Hook Dependencies**
+
 - useCallback with minimal deps
 - useMemo for expensive operations
 - useEffect with correct dependency arrays
 
 ✅ **Component Isolation**
+
 - Each feature in separate file
 - Clear props interfaces
 - Single responsibility principle
@@ -580,11 +635,13 @@ export function validateName(name: string): string | null {
 ### Code Organization
 
 ✅ **Shared Utilities**
+
 - validation.ts for reusable validators
 - context.tsx for shared state
 - Clear separation of concerns
 
 ✅ **Consistent Error Handling**
+
 - try/catch around all async operations
 - Proper error type checking
 - User-friendly error messages
@@ -627,6 +684,7 @@ import { validateEmail } from "./validation";
 ### Adding New Commands
 
 **1. Add to Commander:**
+
 ```typescript
 // commander.tsx
 const guestCommands = [
@@ -636,6 +694,7 @@ const guestCommands = [
 ```
 
 **2. Add View type:**
+
 ```typescript
 // context.tsx
 export type NewCommandView = {
@@ -648,6 +707,7 @@ export type View = ... | NewCommandView;
 ```
 
 **3. Create component:**
+
 ```typescript
 // new-command.tsx
 export default function NewCommand() {
@@ -661,6 +721,7 @@ export default function NewCommand() {
 ```
 
 **4. Wire up in App:**
+
 ```typescript
 // app.tsx
 import NewCommand from "./new-command.js";
@@ -671,6 +732,7 @@ case "/new-command":
 ```
 
 **5. Handle in Commander:**
+
 ```typescript
 // commander.tsx
 case "/new-command":
@@ -685,6 +747,7 @@ case "/new-command":
 ### Recommended Approach
 
 **1. Unit Tests for Utilities:**
+
 ```typescript
 // __tests__/validation.test.ts
 import { validateEmail, validatePassword } from "../validation";
@@ -701,6 +764,7 @@ describe("validateEmail", () => {
 ```
 
 **2. Component Tests with Ink:**
+
 ```typescript
 import { render } from "ink-testing-library";
 import Commander from "../commander";
@@ -713,6 +777,7 @@ test("shows guest commands when not authenticated", () => {
 ```
 
 **3. Integration Tests:**
+
 - Test full authentication flow
 - Test session persistence
 - Test keyboard navigation
@@ -725,19 +790,23 @@ test("shows guest commands when not authenticated", () => {
 ### Current Limitations
 
 ❌ **No Story/Memory Features**
+
 - Authentication is complete
 - Core app features not implemented yet
 - TODO: Add story and memory management
 
 ❌ **No Help Command**
+
 - `/help` is planned but not implemented
 - TODO: Add help documentation viewer
 
 ❌ **No Multi-Account Support**
+
 - Single session only
 - TODO: Allow switching between accounts
 
 ❌ **No Offline Mode**
+
 - Requires active internet connection
 - TODO: Cache data for offline use
 
@@ -755,6 +824,7 @@ test("shows guest commands when not authenticated", () => {
 ### Roadmap
 
 **Phase 1: Core Functionality** (Complete)
+
 - [x] Command palette UI
 - [x] Fuzzy search with Fuse.js
 - [x] Keyboard navigation
@@ -764,6 +834,7 @@ test("shows guest commands when not authenticated", () => {
 - [x] Security hardening
 
 **Phase 2: Feature Expansion** (Next)
+
 - [ ] `/help` - Help documentation
 - [ ] `/story/new` - Create conversations
 - [ ] `/story/list` - List user stories
@@ -771,6 +842,7 @@ test("shows guest commands when not authenticated", () => {
 - [ ] Loading spinners for API calls
 
 **Phase 3: Advanced Features** (Future)
+
 - [ ] Multi-account support
 - [ ] Config file (~/.maidrc)
 - [ ] Command history (↑/↓ to recall)
@@ -784,11 +856,13 @@ test("shows guest commands when not authenticated", () => {
 ### Rendering Performance
 
 **Optimized:**
+
 - `useMemo` for fuzzy search results
 - `useCallback` for event handlers
 - Stable keys prevent unnecessary re-renders
 
 **Watch Out For:**
+
 - Large view arrays (hundreds of views)
 - Expensive fuzzy matching with many commands
 - Nested Box components (keep DOM shallow)
@@ -796,11 +870,13 @@ test("shows guest commands when not authenticated", () => {
 ### API Performance
 
 **Current:**
+
 - No request caching
 - Sequential requests only
 - No optimistic updates
 
 **Future Improvements:**
+
 - Cache session validation results
 - Parallel request batching
 - Optimistic UI updates
@@ -858,6 +934,7 @@ GET    /auth/get-session
 ### Session Token Flow
 
 **1. Login/Signup:**
+
 ```typescript
 const res = await fetch(`${url}/auth/sign-in/email`, { ... });
 const token = res.headers.get("set-auth-token");
@@ -866,11 +943,12 @@ setSession({ email, bearerToken: token });
 ```
 
 **2. Startup Validation:**
+
 ```typescript
 // On CLI launch
 const session = loadSessionFromFile();
 const res = await fetch(`${url}/auth/get-session`, {
-  headers: { 'Authorization': `Bearer ${session.bearerToken}` }
+  headers: { Authorization: `Bearer ${session.bearerToken}` },
 });
 if (!res.ok) {
   setSession(null); // Clear expired session
@@ -878,12 +956,13 @@ if (!res.ok) {
 ```
 
 **3. Authenticated Requests:**
+
 ```typescript
 fetch(`${url}/stories`, {
   headers: {
-    'Authorization': `Bearer ${session.bearerToken}`,
-    'Content-Type': 'application/json'
-  }
+    Authorization: `Bearer ${session.bearerToken}`,
+    "Content-Type": "application/json",
+  },
 });
 ```
 
@@ -913,12 +992,14 @@ Before committing changes:
 **Maid CLI** has a solid, secure foundation with complete authentication functionality. The view-based architecture is unique and works well for terminal UIs, creating a natural scrolling history experience.
 
 **Current State:**
+
 - Authentication: ✅ Complete and secure
 - Session management: ✅ Complete with validation
 - Core features: ❌ Not yet implemented
 - Code quality: ✅ Excellent (type-safe, secure, well-structured)
 
 **Next Steps:**
+
 1. Implement story management commands
 2. Implement memory search commands
 3. Add help documentation viewer
@@ -926,6 +1007,7 @@ Before committing changes:
 5. Write comprehensive tests
 
 **Estimated Effort:**
+
 - Story/memory features: 3-5 days
 - Help documentation: 1-2 days
 - Loading states: 1 day
@@ -933,6 +1015,6 @@ Before committing changes:
 
 ---
 
-*Documentation updated on 2025-11-13*
-*CLI Version: 0.1.0*
-*Author: Claude (Sonnet 4.5)*
+_Documentation updated on 2025-11-13_
+_CLI Version: 0.1.0_
+_Author: Claude (Sonnet 4.5)_
