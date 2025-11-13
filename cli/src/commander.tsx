@@ -1,12 +1,12 @@
 import { useCallback, useContext, useState, useMemo } from "react";
-import { viewContext } from "./context.js";
+import { viewContext, addViews } from "./context.js";
 
 import Fuse from "fuse.js";
 
 import TextInput from "ink-text-input";
 import { Box, Text } from "ink";
 
-const commandsA = [
+const authCommands = [
   {
     id: "/login",
     desc: "login with your email and password",
@@ -17,20 +17,25 @@ const commandsA = [
   },
 ];
 
-const commandsC = [
+const generalCommands = [
   {
     id: "/exit",
     desc: "exit Maid3",
   },
 ];
 
-const fuseA = new Fuse([...commandsA, ...commandsC], { keys: ["id"] });
+const allCommands = [...authCommands, ...generalCommands];
+const commandFuse = new Fuse(allCommands, { keys: ["id"] });
 
 export default function Commander() {
   const context = useContext(viewContext);
 
   const [active, setActive] = useState(true);
   const [query, setQuery] = useState("");
+
+  const searchList = useMemo(() => {
+    return commandFuse.search(query); // Perform search based on the current query
+  }, [query]);
 
   const onSubmit = useCallback(() => {
     setActive(false);
@@ -40,21 +45,18 @@ export default function Commander() {
       switch (q.item.id) {
         case "/login":
         case "/signup":
-          context.setViews([...context.views, { kind: q.item.id }]);
+          context.setViews(addViews(context.views, [{ kind: q.item.id }]));
           return;
         case "/exit":
-          context.setViews([
-            ...context.views,
-            { kind: "text", option: "Bye!" },
-          ]);
-          setTimeout(() => process.exit(), 50);
+          context.setViews(
+            addViews(context.views, [
+              { kind: "text", option: { label: "Bye!", color: "green" } },
+            ])
+          );
+          setTimeout(() => process.exit(0), 100);
       }
     }
-  }, [query, context, setActive]);
-
-  const searchList = useMemo(() => {
-    return fuseA.search(query); // Perform search based on the current query
-  }, [query]);
+  }, [searchList, context]);
 
   if (!active)
     return (

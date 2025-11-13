@@ -3,10 +3,11 @@ import TextInput from "ink-text-input";
 import { useCallback, useState, useContext } from "react";
 import { viewContext, addViews } from "./context.js";
 
-export default function Login({ url }: { url: string }) {
+export default function Signup({ url }: { url: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [step, setStep] = useState<"email" | "password">("email");
+  const [name, setName] = useState("");
+  const [step, setStep] = useState<"name" | "email" | "password">("name");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -18,9 +19,13 @@ export default function Login({ url }: { url: string }) {
     (_input, key) => {
       if (!active) return;
 
-      if (key.shift && key.tab && step === "password") {
-        setStep("email");
+      if (key.shift && key.tab) {
         setError("");
+        if (step === "password") {
+          setStep("email");
+        } else if (step === "email") {
+          setStep("name");
+        }
         return;
       }
 
@@ -31,7 +36,7 @@ export default function Login({ url }: { url: string }) {
             addViews(context.views, [
               {
                 kind: "text",
-                option: { label: "Login canceled", dimColor: true },
+                option: { label: "Signup canceled", dimColor: true },
               },
               { kind: "commander" },
             ])
@@ -41,8 +46,13 @@ export default function Login({ url }: { url: string }) {
     { isActive: active },
   );
 
-  const login = useCallback(async () => {
+  const signup = useCallback(async () => {
     try {
+      if (!name) {
+        setError("Name is required");
+        setStep("name");
+        return;
+      }
       if (!email) {
         setError("Email is required");
         setStep("email");
@@ -59,7 +69,7 @@ export default function Login({ url }: { url: string }) {
         setStep("password");
         return;
       }
-      // Password length check
+      // Password validation
       if (password.length < 8) {
         setError("Password must be at least 8 characters");
         setStep("password");
@@ -69,18 +79,19 @@ export default function Login({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const res = await fetch(`${url}/auth/sign-in/email`, {
+      const res = await fetch(`${url}/auth/sign-up/email`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          name,
           email,
           password,
         }),
       });
       if (!res.ok) {
-        let message = "Failed to login";
+        let message = "Failed to signup";
         try {
           const json = await res.json();
           if (json.message) message += ": " + json.message;
@@ -97,7 +108,7 @@ export default function Login({ url }: { url: string }) {
             {
               kind: "text",
               option: {
-                label: "Login as " + json.user.email,
+                label: "Signed up as " + json.user.email,
               },
             },
             { kind: "commander" },
@@ -114,7 +125,7 @@ export default function Login({ url }: { url: string }) {
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, context, setStep, setError]);
+  }, [url, name, email, password, context]);
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;
@@ -124,31 +135,57 @@ export default function Login({ url }: { url: string }) {
     <Box flexDirection="column">
       <Box columnGap={1}>
         <Text bold dimColor>
-          Email:
+          Name:
         </Text>
-        {step === "email" ? (
+        {step === "name" ? (
           <TextInput
-            value={email}
-            onChange={setEmail}
-            placeholder="abc@abc.com"
+            value={name}
+            onChange={setName}
+            placeholder="Your Name"
             focus
             onSubmit={() => {
-              if (!email) {
-                setError("Email is required");
-                return;
-              }
-              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                setError("Invalid email format");
+              if (!name) {
+                setError("Name is required");
                 return;
               }
               setError("");
-              setStep("password");
+              setStep("email");
             }}
           />
         ) : (
-          <Text>{email}</Text>
+          <Text>{name}</Text>
         )}
       </Box>
+
+      {(step === "email" || step === "password") && (
+        <Box columnGap={1}>
+          <Text bold dimColor>
+            Email:
+          </Text>
+          {step === "email" ? (
+            <TextInput
+              value={email}
+              onChange={setEmail}
+              placeholder="abc@abc.com"
+              focus
+              onSubmit={() => {
+                if (!email) {
+                  setError("Email is required");
+                  return;
+                }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                  setError("Invalid email format");
+                  return;
+                }
+                setError("");
+                setStep("password");
+              }}
+            />
+          ) : (
+            <Text>{email}</Text>
+          )}
+        </Box>
+      )}
 
       {step === "password" && (
         <Box columnGap={1}>
@@ -160,13 +197,13 @@ export default function Login({ url }: { url: string }) {
             onChange={setPassword}
             mask="*"
             focus
-            onSubmit={login}
+            onSubmit={signup}
           />
         </Box>
       )}
 
-      {step === "password" && (
-        <Text dimColor>Press Shift+Tab to edit email, Esc to cancel.</Text>
+      {step !== "name" && (
+        <Text dimColor>Press Shift+Tab to go back, Esc to cancel.</Text>
       )}
 
       {error && <Text color="red">{error}</Text>}
