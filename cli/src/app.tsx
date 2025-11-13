@@ -3,6 +3,7 @@ import { useState } from "react";
 import Commander from "./commander.js";
 import { Session, type View, viewContext } from "./context.js";
 import Login from "./login.js";
+import Signup from "./signup.js";
 
 export default function App({ url }: { url: string }) {
   const [views, setViews] = useState<View[]>([
@@ -19,16 +20,18 @@ export default function App({ url }: { url: string }) {
             return (
               <Text
                 key={index}
-                color={view.option.color ?? undefined}
+                color={view.option.color}
                 dimColor={view.option.dimColor ?? false}
               >
-                {view.option.label as string}
+                {view.option.label}
               </Text>
             );
           case "commander":
             return <Commander key={index} />;
           case "/login":
             return <Login key={index} url={url} />;
+          case "/signup":
+            return <Signup key={index} url={url} />;
           default:
             return <Text key={index}>{view.kind}: "Unknown"</Text>;
         }
