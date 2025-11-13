@@ -136,3 +136,97 @@ export function AdminUsersList({ url }: { url: string }) {
     </Box>
   );
 }
+
+export function AdminUsersDelete({
+  url,
+  userId,
+}: {
+  url: string;
+  userId: string;
+}) {
+  const [session] = useSession();
+  const addViews = useAddViews();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    const deleteUser = async () => {
+      if (!session) {
+        setError("Not authenticated");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const res = await fetch(`${url}/api/admin/users/${userId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${session.bearerToken}`,
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          if (res.status === 403) {
+            throw new Error("Unauthorized: Admin access required");
+          }
+          if (res.status === 404) {
+            throw new Error(`User not found: ${userId}`);
+          }
+          let message = `Failed to delete user: ${res.status}`;
+          try {
+            const data = await res.json();
+            if (data.error) message = data.error;
+          } catch {}
+          throw new Error(message);
+        }
+
+        setSuccess(true);
+      } catch (e) {
+        if (e instanceof Error) {
+          if (e.name === "AbortError") {
+            setError("Request timeout - server not responding");
+          } else if (e instanceof TypeError) {
+            setError("Network error: Cannot connect to server");
+          } else {
+            setError(e.message);
+          }
+        } else {
+          setError("Unknown error");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    deleteUser();
+  }, [url, userId, session]);
+
+  useEffect(() => {
+    if (!loading) {
+      setTimeout(() => {
+        addViews({ removeLast: true }, { kind: "commander" });
+      }, 2000);
+    }
+  }, [loading, addViews]);
+
+  if (loading) {
+    return <Text color="gray">Deleting user {userId}...</Text>;
+  }
+
+  if (error) {
+    return <Text color="red">{error}</Text>;
+  }
+
+  if (success) {
+    return <Text color="green">User {userId} deleted successfully</Text>;
+  }
+
+  return null;
+}

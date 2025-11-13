@@ -10,7 +10,68 @@ type Command = {
   id: string;
   desc: string;
   handler?: string;
+  params?: string[];
 };
+
+type ParsedCommand = {
+  command: Command;
+  params: Record<string, string>;
+};
+
+function parseCommand(input: string, commands: Command[]): ParsedCommand | null {
+  const inputParts = input.trim().split(/\s+/);
+
+  for (const command of commands) {
+    const commandParts = command.id.split(/\s+/);
+    const paramNames: string[] = [];
+    const paramValues: Record<string, string> = {};
+
+    let matches = true;
+    let inputIndex = 0;
+
+    for (let i = 0; i < commandParts.length; i++) {
+      const part = commandParts[i];
+
+      if (!part) {
+        continue;
+      }
+
+      if (part.startsWith("<") && part.endsWith(">")) {
+        const paramName = part.slice(1, -1);
+        paramNames.push(paramName);
+
+        if (inputIndex >= inputParts.length) {
+          matches = false;
+          break;
+        }
+
+        const value = inputParts[inputIndex];
+        if (!value) {
+          matches = false;
+          break;
+        }
+
+        paramValues[paramName] = value;
+        inputIndex++;
+      } else {
+        if (inputIndex >= inputParts.length || inputParts[inputIndex] !== part) {
+          matches = false;
+          break;
+        }
+        inputIndex++;
+      }
+    }
+
+    if (matches && inputIndex === inputParts.length) {
+      return {
+        command: { ...command, params: paramNames },
+        params: paramValues,
+      };
+    }
+  }
+
+  return null;
+}
 
 const guestCommands: Command[] = [
   {
@@ -36,6 +97,11 @@ const authedCommands: Command[] = [
     id: "/admin users list",
     desc: "list all users (admin only)",
     handler: "/admin/users/list",
+  },
+  {
+    id: "/admin users delete <user_id>",
+    desc: "delete a user by ID (admin only)",
+    handler: "/admin/users/delete",
   },
   {
     id: "/exit",
@@ -89,7 +155,7 @@ export default function Commander() {
   );
 
   const executeCommand = useCallback(
-    (command: Command) => {
+    (command: Command, params: Record<string, string> = {}) => {
       // Route command based on ID or handler
       const commandId = command.handler || command.id;
 
@@ -118,6 +184,24 @@ export default function Commander() {
         return;
       }
 
+      if (commandId === "/admin/users/delete") {
+        const userId = params["user_id"];
+        if (!userId) {
+          addViews({
+            kind: "text",
+            option: { label: "Error: user_id is required", color: "red" },
+          });
+          addViews({ kind: "commander" });
+          setTimeout(() => setActive(true), 50);
+          return;
+        }
+        addViews(
+          { kind: "text", option: { label: `/admin users delete ${userId}`, dimColor: true } },
+          { kind: "/admin/users/delete", option: { userId } },
+        );
+        return;
+      }
+
       // Default case: unknown command
       addViews({
         kind: "text",
@@ -130,6 +214,14 @@ export default function Commander() {
   const onSubmit = useCallback(() => {
     setActive(false);
 
+    // First, try to parse the query as a command with parameters
+    const parsed = parseCommand(query, availableCommands);
+    if (parsed) {
+      executeCommand(parsed.command, parsed.params);
+      return;
+    }
+
+    // Fall back to fuzzy search selection
     if (searchList.length === 0) {
       addViews({
         kind: "text",
@@ -151,8 +243,20 @@ export default function Commander() {
       return;
     }
 
+    // Check if command requires parameters
+    const commandId = selectedCommand.item.id;
+    if (commandId.includes("<") && commandId.includes(">")) {
+      addViews({
+        kind: "text",
+        option: { label: `Command requires parameters: ${commandId}`, color: "yellow" },
+      });
+      addViews({ kind: "commander" });
+      setTimeout(() => setActive(true), 50);
+      return;
+    }
+
     executeCommand(selectedCommand.item);
-  }, [searchList, selectedIndex, addViews, executeCommand]);
+  }, [query, availableCommands, searchList, selectedIndex, addViews, executeCommand]);
 
   if (!active) return null;
 

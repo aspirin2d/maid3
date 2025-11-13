@@ -34,13 +34,21 @@ export type AdminUsersListView = {
   option?: never;
 };
 
+export type AdminUsersDeleteView = {
+  kind: "/admin/users/delete";
+  option: {
+    userId: string;
+  };
+};
+
 export type View =
   | TextView
   | CommanderView
   | LoginView
   | SignupView
   | LogoutView
-  | AdminUsersListView;
+  | AdminUsersListView
+  | AdminUsersDeleteView;
 
 type AddViewsOptions = {
   removeLast?: boolean;

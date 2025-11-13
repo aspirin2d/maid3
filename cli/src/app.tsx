@@ -8,7 +8,7 @@ import { Session, type View, viewContext } from "./context.js";
 import Login from "./login.js";
 import Signup from "./signup.js";
 import Logout from "./logout.js";
-import { AdminUsersList } from "./admin.js";
+import { AdminUsersList, AdminUsersDelete } from "./admin.js";
 
 const sessionFilePath = path.join(homedir(), ".maid_session");
 
@@ -129,6 +129,8 @@ export default function App({ url }: { url: string }) {
             return <Logout key={index} />;
           case "/admin/users/list":
             return <AdminUsersList key={index} url={url} />;
+          case "/admin/users/delete":
+            return <AdminUsersDelete key={index} url={url} userId={view.option.userId} />;
         }
       })}
     </viewContext.Provider>
