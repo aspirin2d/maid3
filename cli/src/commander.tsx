@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { useAddViews, useSession } from "./context.js";
+import { useCallback, useContext, useMemo, useState } from "react";
+import { useAddViews, useSession, viewContext } from "./context.js";
 
 import Fuse from "fuse.js";
 
@@ -35,6 +35,9 @@ const authedCommands = [
 export default function Commander() {
   const addViews = useAddViews();
   const [session] = useSession();
+  const context = useContext(viewContext);
+  if (!context) throw new Error("viewContext is not available");
+  const { generateViewId } = context;
 
   const availableCommands = session ? authedCommands : guestCommands;
   const commandFuse = useMemo(
@@ -59,10 +62,11 @@ export default function Commander() {
       case "/login":
       case "/signup":
       case "/logout":
-        addViews({ kind: q.item.id });
+        addViews({ id: generateViewId(), kind: q.item.id });
         return;
       case "/exit":
         addViews({
+          id: generateViewId(),
           kind: "text",
           option: { label: "Bye!", color: "green" },
         });

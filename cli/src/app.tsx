@@ -1,5 +1,5 @@
 import { Text } from "ink";
-import { useCallback, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { homedir } from "node:os";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -8,6 +8,11 @@ import { Session, type View, viewContext } from "./context.js";
 import Login from "./login.js";
 import Signup from "./signup.js";
 import Logout from "./logout.js";
+
+let nextViewId = 0;
+function generateViewId(): string {
+  return `view-${Date.now()}-${nextViewId++}`;
+}
 
 const sessionFilePath = path.join(homedir(), ".maid_session");
 
@@ -38,9 +43,15 @@ function persistSessionToFile(session: Session | null) {
       if (existsSync(sessionFilePath)) unlinkSync(sessionFilePath);
       return;
     }
-    writeFileSync(sessionFilePath, JSON.stringify(session), "utf-8");
-  } catch {
-    // best-effort persistence; ignore errors
+    writeFileSync(sessionFilePath, JSON.stringify(session), {
+      mode: 0o600, // Read/write for owner only
+      encoding: 'utf-8'
+    });
+  } catch (err) {
+    console.error(
+      '[Warning] Failed to save session:',
+      err instanceof Error ? err.message : String(err)
+    );
   }
 }
 
@@ -51,13 +62,14 @@ export default function App({ url }: { url: string }) {
 
   const [views, setViews] = useState<View[]>([
     {
+      id: generateViewId(),
       kind: "text",
       option: {
         label: session ? `Login as ${session.email}` : "Please '/login' first",
         dimColor: true,
       },
     },
-    { kind: "commander", option: { url: url } },
+    { id: generateViewId(), kind: "commander", option: { url: url } },
   ]);
 
   const setSession = useCallback((value: SetStateAction<Session | null>) => {
@@ -71,14 +83,39 @@ export default function App({ url }: { url: string }) {
     });
   }, []);
 
+  // Validate session on startup
+  useEffect(() => {
+    if (!session) return;
+
+    fetch(`${url}/auth/get-session`, {
+      headers: { 'Authorization': `Bearer ${session.bearerToken}` }
+    })
+    .then(res => {
+      if (!res.ok) {
+        setSession(null);
+        setViews(prev => [
+          ...prev,
+          {
+            id: generateViewId(),
+            kind: 'text',
+            option: { label: 'Session expired, please login again', color: 'yellow' }
+          }
+        ]);
+      }
+    })
+    .catch(() => {
+      // Network error - keep session, will fail on next request
+    });
+  }, []); // Run once on mount
+
   return (
-    <viewContext.Provider value={{ views, setViews, session, setSession }}>
-      {views.map((view, index) => {
+    <viewContext.Provider value={{ views, setViews, session, setSession, generateViewId }}>
+      {views.map((view) => {
         switch (view.kind) {
           case "text":
             return (
               <Text
-                key={index}
+                key={view.id}
                 color={view.option.color}
                 dimColor={view.option.dimColor ?? false}
               >
@@ -86,13 +123,13 @@ export default function App({ url }: { url: string }) {
               </Text>
             );
           case "commander":
-            return <Commander key={index} />;
+            return <Commander key={view.id} />;
           case "/login":
-            return <Login key={index} url={url} />;
+            return <Login key={view.id} url={url} />;
           case "/signup":
-            return <Signup key={index} url={url} />;
+            return <Signup key={view.id} url={url} />;
           case "/logout":
-            return <Logout key={index} />;
+            return <Logout key={view.id} />;
         }
       })}
     </viewContext.Provider>

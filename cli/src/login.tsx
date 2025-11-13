@@ -1,7 +1,8 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState } from "react";
-import { useAddViews, useSession } from "./context.js";
+import { useCallback, useContext, useState } from "react";
+import { useAddViews, useSession, viewContext } from "./context.js";
+import { validateEmail, validatePassword } from "./validation.js";
 
 export default function Login({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -15,9 +16,24 @@ export default function Login({ url }: { url: string }) {
   const [, setSession] = useSession();
   const addViews = useAddViews();
 
+  const context = useContext(viewContext);
+  if (!context) throw new Error("viewContext is not available");
+  const { generateViewId } = context;
+
   useInput(
     (_input, key) => {
       if (!active) return;
+
+      if (key.tab && !key.shift && step === "email") {
+        const emailError = validateEmail(email);
+        if (emailError) {
+          setError(emailError);
+        } else {
+          setError("");
+          setStep("password");
+        }
+        return;
+      }
 
       if (key.shift && key.tab && step === "password") {
         setStep("email");
@@ -29,10 +45,11 @@ export default function Login({ url }: { url: string }) {
         setActive(false);
         addViews(
           {
+            id: generateViewId(),
             kind: "text",
             option: { label: "Login canceled", dimColor: true },
           },
-          { kind: "commander" },
+          { id: generateViewId(), kind: "commander" },
         );
       }
     },
@@ -41,25 +58,16 @@ export default function Login({ url }: { url: string }) {
 
   const login = useCallback(async () => {
     try {
-      if (!email) {
-        setError("Email is required");
+      const emailError = validateEmail(email);
+      if (emailError) {
+        setError(emailError);
         setStep("email");
         return;
       }
-      // Email validation
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setError("Invalid email format");
-        setStep("email");
-        return;
-      }
-      if (!password) {
-        setError("Password is required");
-        setStep("password");
-        return;
-      }
-      // Password length check
-      if (password.length < 8) {
-        setError("Password must be at least 8 characters");
+
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        setError(passwordError);
         setStep("password");
         return;
       }
@@ -67,51 +75,65 @@ export default function Login({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const res = await fetch(`${url}/auth/sign-in/email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-      if (!res.ok) {
-        let message = "Failed to login";
-        try {
-          const json = await res.json();
-          if (json.message) message += ": " + json.message;
-        } catch {}
-        throw new Error(message);
-      }
-      const json = await res.json();
-      const token = res.headers.get("set-auth-token");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      setSession({
-        email: json.user.email,
-        bearerToken: token ?? "",
-      });
-      setActive(false);
-      addViews(
-        {
-          kind: "text",
-          option: {
-            label: "Login as " + json.user.email,
+      try {
+        const res = await fetch(`${url}/auth/sign-in/email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        },
-        { kind: "commander" },
-      );
-    } catch (e: any) {
-      if (e instanceof TypeError) {
-        setError("Network error: Cannot connect to server");
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          // Generic error to avoid information leakage
+          throw new Error("Invalid email or password");
+        }
+        const json = await res.json();
+        const token = res.headers.get("set-auth-token");
+
+        setSession({
+          email: json.user.email,
+          bearerToken: token ?? "",
+        });
+        setActive(false);
+        addViews(
+          {
+            id: generateViewId(),
+            kind: "text",
+            option: {
+              label: "Login as " + json.user.email,
+            },
+          },
+          { id: generateViewId(), kind: "commander" },
+        );
+      } catch (e) {
+        clearTimeout(timeout);
+        throw e;
+      }
+    } catch (e) {
+      if (e instanceof Error) {
+        if (e.name === 'AbortError') {
+          setError('Request timeout - server not responding');
+        } else if (e instanceof TypeError) {
+          setError("Network error: Cannot connect to server");
+        } else {
+          setError(e.message);
+        }
       } else {
-        setError(e.message ?? "Unknown error");
+        setError("Unknown error");
       }
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, setStep, setError, setSession, addViews]);
+  }, [url, email, password, setSession, addViews, generateViewId]);
 
   if (!active) return null;
 
@@ -132,12 +154,9 @@ export default function Login({ url }: { url: string }) {
             placeholder="abc@abc.com"
             focus
             onSubmit={() => {
-              if (!email) {
-                setError("Email is required");
-                return;
-              }
-              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                setError("Invalid email format");
+              const emailError = validateEmail(email);
+              if (emailError) {
+                setError(emailError);
                 return;
               }
               setError("");
@@ -162,6 +181,10 @@ export default function Login({ url }: { url: string }) {
             onSubmit={login}
           />
         </Box>
+      )}
+
+      {step === "email" && (
+        <Text dimColor>Press Tab to continue, Esc to cancel.</Text>
       )}
 
       {step === "password" && (
