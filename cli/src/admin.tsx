@@ -87,24 +87,26 @@ export function AdminUsers({ url }: { url: string }) {
         const json = (await res.json()) as Partial<AdminUsersResponse>;
         if (cancelled) return;
 
-        const normalizedMeta = {
-          page: json.meta?.page ?? page,
-          pageSize: json.meta?.pageSize ?? PAGE_SIZE,
-          totalPages: json.meta?.totalPages ?? 1,
-          hasNext: json.meta?.hasNext ?? false,
-          hasPrev: json.meta?.hasPrev ?? page > 1,
-        };
-
         const normalizedUsers = Array.isArray(json.users)
           ? (json.users as AdminUser[])
           : [];
 
+        const total =
+          typeof json.total === "number" ? json.total : normalizedUsers.length;
+
+        // Use backend-calculated meta values when available
+        // Otherwise calculate based on current state
+        const normalizedMeta = {
+          page: json.meta?.page ?? page,
+          pageSize: json.meta?.pageSize ?? PAGE_SIZE,
+          totalPages: json.meta?.totalPages ?? Math.ceil(total / PAGE_SIZE),
+          hasNext: json.meta?.hasNext ?? page * PAGE_SIZE < total,
+          hasPrev: json.meta?.hasPrev ?? page > 1,
+        };
+
         setState({
           users: normalizedUsers,
-          total:
-            typeof json.total === "number"
-              ? json.total
-              : normalizedUsers.length,
+          total,
           meta: normalizedMeta,
         });
         setSelectedIndex((prev) =>
@@ -245,7 +247,9 @@ export function AdminUsers({ url }: { url: string }) {
           </Box>
 
           <Text dimColor>
-            ↑/↓ select • ← previous page • → next page • q exit
+            ↑/↓ select
+            {state?.meta.hasPrev && " • ← previous page"}
+            {state?.meta.hasNext && " • → next page"} • q exit
           </Text>
         </>
       )}
