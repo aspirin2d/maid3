@@ -119,6 +119,7 @@ export default function Signup({ url }: { url: string }) {
         setSession({
           email: json.user.email,
           bearerToken: token ?? "",
+          isAdmin: json.user.role === "admin",
         });
         addViews(
           [

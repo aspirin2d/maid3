@@ -8,6 +8,7 @@ import { Session, type View, viewContext } from "./context.js";
 import Login from "./login.js";
 import Signup from "./signup.js";
 import Logout from "./logout.js";
+import { AdminUsers } from "./admin.js";
 
 const sessionFilePath = path.join(homedir(), ".maid_session");
 
@@ -59,7 +60,9 @@ export default function App({ url }: { url: string }) {
     {
       kind: "text",
       option: {
-        label: session ? `Login as ${session.email}` : "Please '/login' first",
+        label: session
+          ? `Login as ${session.email} [${session.isAdmin ? "admin" : ""}]`
+          : "Please '/login' first",
         dimColor: true,
       },
     },
@@ -98,6 +101,14 @@ export default function App({ url }: { url: string }) {
             },
           ]);
         }
+
+        return res.json();
+      })
+      .then((data) => {
+        setSession({
+          ...session,
+          isAdmin: data.user.role === "admin",
+        });
       })
       .catch(() => {
         // Network error - keep session, will fail on next request
@@ -126,6 +137,8 @@ export default function App({ url }: { url: string }) {
             return <Signup key={index} url={url} />;
           case "/logout":
             return <Logout key={index} />;
+          case "/admin users":
+            return <AdminUsers key={index} url={url} />;
         }
       })}
     </viewContext.Provider>

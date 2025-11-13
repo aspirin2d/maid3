@@ -29,16 +29,23 @@ export type LogoutView = {
   option?: never;
 };
 
+export type AdminUsersView = {
+  kind: "/admin users";
+  option?: never;
+};
+
 export type View =
   | TextView
   | CommanderView
   | LoginView
   | SignupView
-  | LogoutView;
+  | LogoutView
+  | AdminUsersView;
 
 export type Session = {
   bearerToken: string;
   email: string;
+  isAdmin: boolean;
 };
 
 interface ViewContextType {

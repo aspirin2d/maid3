@@ -21,6 +21,13 @@ const guestCommands = [
   },
 ];
 
+const adminCommands = [
+  {
+    id: "/admin users",
+    desc: "users management",
+  },
+];
+
 const authedCommands = [
   {
     id: "/logout",
@@ -35,12 +42,18 @@ const authedCommands = [
 export default function Commander() {
   const addViews = useAddViews();
   const [session] = useSession();
-  const availableCommands = session ? authedCommands : guestCommands;
+  const availableCommands = useMemo(() => {
+    if (!session) return guestCommands;
+    const commands = [...authedCommands];
+    if (session.isAdmin) {
+      commands.push(...adminCommands);
+    }
+    return commands;
+  }, [session]);
 
-  const commandFuse = useMemo(
-    () => new Fuse(availableCommands, { keys: ["id"] }),
-    [availableCommands],
-  );
+  const commandFuse = useMemo(() => {
+    return new Fuse(availableCommands, { keys: ["id"] });
+  }, [availableCommands]);
 
   const [query, setQuery] = useState("");
 
@@ -56,6 +69,7 @@ export default function Commander() {
       case "/login":
       case "/signup":
       case "/logout":
+      case "/admin users":
         addViews(
           [
             { kind: "text", option: { label: q.item.id, dimColor: true } },
@@ -90,7 +104,7 @@ export default function Commander() {
         searchList.map((res, index) => (
           <Box flexDirection="column" key={index}>
             <Box>
-              <Box width={10}>
+              <Box width={14}>
                 <Text
                   color={index === 0 ? "cyan" : undefined}
                   bold={index === 0}
