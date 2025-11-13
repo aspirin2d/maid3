@@ -1,10 +1,10 @@
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 
 import Fuse from "fuse.js";
 
-import TextInput from "ink-text-input";
 import { Box, Text } from "ink";
+import TextInput from "ink-text-input";
 
 const guestCommands = [
   {
