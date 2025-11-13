@@ -14,16 +14,10 @@
 
 ### General Rules
 
-1. **No Emojis in Code**: Never use emojis in source code, UI text, or user-facing messages. Use plain text alternatives instead:
-   - ✓ → [Success] or [OK]
-   - ❌ → [Error] or [Failed]
-   - ⚠ → [Warning]
-   - 💡 → [Tip] or [Note]
-   - ⏳ → [Loading...] or [Processing...]
-
-   **Rationale:** Emojis can cause rendering issues in terminals, may not be accessible to screen readers, and can look unprofessional in production applications.
-
+1. **No Emojis in Code**: Do not use "emojis" in code
 2. **Keyboard Navigation**: All interactive CLI components should support both arrow keys and Tab for navigation to improve accessibility and user experience.
+
+3. **No markdown files**: Do not add markdown files.
 
 ---
 
@@ -122,16 +116,17 @@ export const db = drizzle(process.env.DB_URL!); // ❌ undefined if not set
 **Impact:** Server will start with invalid configuration, leading to runtime failures.
 
 **Recommendation:**
+
 ```typescript
 // Validate at startup
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 if (isNaN(PORT)) {
-  throw new Error('PORT must be a valid number');
+  throw new Error("PORT must be a valid number");
 }
 
 const DB_URL = process.env.DB_URL;
 if (!DB_URL) {
-  throw new Error('DB_URL environment variable is required');
+  throw new Error("DB_URL environment variable is required");
 }
 ```
 
@@ -152,6 +147,7 @@ export const requireAdmin = async (c: AdminContext, next: AdminNext) => {
 **Impact:** Runtime error if session middleware fails or is bypassed.
 
 **Recommendation:**
+
 ```typescript
 export const requireAdmin = async (c: AdminContext, next: AdminNext) => {
   const user = c.get("user");
@@ -172,16 +168,17 @@ export const requireAdmin = async (c: AdminContext, next: AdminNext) => {
 **Issue:** Unhandled promise rejections or route errors could crash the server.
 
 **Recommendation:**
+
 ```typescript
 // Add error handler middleware
 app.onError((err, c) => {
-  console.error('Server error:', err);
-  return c.json({ error: 'Internal server error' }, 500);
+  console.error("Server error:", err);
+  return c.json({ error: "Internal server error" }, 500);
 });
 
 // Handle unhandled rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
 ```
 
@@ -190,9 +187,10 @@ process.on('unhandledRejection', (reason, promise) => {
 **Issue:** Better Auth needs a base URL for proper redirect handling in production.
 
 **Recommendation:**
+
 ```typescript
 export const auth = betterAuth({
-  baseURL: process.env.BASE_URL || 'http://localhost:3000',
+  baseURL: process.env.BASE_URL || "http://localhost:3000",
   database: drizzleAdapter(db, { provider: "pg" }),
   // ... rest of config
 });
@@ -203,17 +201,18 @@ export const auth = betterAuth({
 **Issue:** Zod is installed but not used for request validation.
 
 **Recommendation:** Add input validation for API endpoints:
+
 ```typescript
-import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
 
-app.post('/api/signup', zValidator('json', signupSchema), async (c) => {
-  const data = c.req.valid('json');
+app.post("/api/signup", zValidator("json", signupSchema), async (c) => {
+  const data = c.req.valid("json");
   // ... handle signup
 });
 ```
@@ -225,6 +224,7 @@ app.post('/api/signup', zValidator('json', signupSchema), async (c) => {
 **Impact:** Memory table cannot be effectively used without embedding generation and search.
 
 **Recommendation:** Implement embedding utilities:
+
 - OpenAI embeddings client
 - Ollama embeddings client
 - DashScope embeddings client
@@ -243,6 +243,7 @@ emailAndPassword: {
 ```
 
 **Recommendation:** Use environment-based configuration:
+
 ```typescript
 requireEmailVerification: process.env.NODE_ENV === 'production',
 ```
@@ -264,19 +265,22 @@ requireEmailVerification: process.env.NODE_ENV === 'production',
 **Issue:** Only console.log used for logging, no structured logging or log levels.
 
 **Recommendation:** Use a logging library like `pino` or `winston`:
+
 ```typescript
-import pino from 'pino';
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+import pino from "pino";
+const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 ```
 
 #### 10. Magic Numbers in Schema (src/db/schema.ts)
 
 **Issue:** Hard-coded values without constants:
+
 - Rate limit time window: 86400000ms (24 hours)
 - Rate limit max: 10 requests
 - Embedding dimensions: 1536
 
 **Recommendation:** Extract to constants:
+
 ```typescript
 export const RATE_LIMIT_DEFAULTS = {
   TIME_WINDOW: 24 * 60 * 60 * 1000, // 24 hours
@@ -314,20 +318,30 @@ export const EMBEDDING_DIMENSIONS = {
 ### Recommendations
 
 1. **Add Rate Limiting:**
+
 ```typescript
-import { rateLimiter } from 'hono-rate-limiter';
-app.use('*', rateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-}));
+import { rateLimiter } from "hono-rate-limiter";
+app.use(
+  "*",
+  rateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+  }),
+);
 ```
 
 2. **Enable CORS:**
+
 ```typescript
-import { cors } from 'hono/cors';
-app.use('*', cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-}));
+import { cors } from "hono/cors";
+app.use(
+  "*",
+  cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || [
+      "http://localhost:3000",
+    ],
+  }),
+);
 ```
 
 3. **Rotate Admin Credentials:** After first setup, change default admin password
@@ -420,14 +434,17 @@ app.use('*', cors({
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/sign-up/email` - Email/password signup
 - `POST /api/auth/sign-in/email` - Email/password login
 - `GET /api/auth/session` - Get current session
 
 ### Admin (requires admin role via `requireAdmin` middleware)
-*(No admin routes implemented yet, but middleware exists)*
+
+_(No admin routes implemented yet, but middleware exists)_
 
 ### Future Endpoints (Inferred from Schema)
+
 - Stories CRUD (`/api/stories`)
 - Messages CRUD (`/api/stories/:id/messages`)
 - Memories CRUD with vector search (`/api/memories`)
@@ -438,6 +455,7 @@ app.use('*', cors({
 ## Development Workflow
 
 ### Setup
+
 ```bash
 # Install dependencies
 pnpm install
@@ -455,6 +473,7 @@ npm run dev
 ```
 
 ### Migration Workflow
+
 ```bash
 # After modifying src/db/schema.ts
 npx drizzle-kit generate --config drizzle.config.ts
@@ -462,6 +481,7 @@ npx drizzle-kit push
 ```
 
 ### Build & Deploy
+
 ```bash
 npm run build
 npm start
@@ -472,12 +492,14 @@ npm start
 ## Environment Variables Reference
 
 ### Required
+
 ```env
 PORT=3000
 DB_URL=postgresql://user:password@localhost:5432/maid3
 ```
 
 ### Optional (Admin Seeding)
+
 ```env
 DEFAULT_ADMIN_EMAIL=admin@example.com
 DEFAULT_ADMIN_PASSWORD=change-me-in-production
@@ -485,6 +507,7 @@ DEFAULT_ADMIN_NAME=Admin
 ```
 
 ### Recommended
+
 ```env
 NODE_ENV=production
 BASE_URL=https://your-domain.com
@@ -519,26 +542,3 @@ LOG_LEVEL=info
 5. **API Versioning:**
    - Add `/api/v1/` prefix
    - Plan for backward compatibility
-
----
-
-## Conclusion
-
-**maid3** has a solid foundation with modern tooling and good architectural decisions. The main areas needing attention are:
-
-1. **Security hardening** (input validation, rate limiting, CORS)
-2. **Error handling** (global handlers, validation)
-3. **Feature completion** (embedding implementation, CLI)
-4. **Testing** (unit and integration tests)
-
-The codebase is well-structured and maintainable. With the recommended fixes applied, it will be production-ready.
-
-**Estimated Effort to Production:**
-- Priority 1 fixes: 1-2 days
-- Priority 2 fixes: 3-5 days
-- Priority 3 tasks: 2-3 weeks
-
----
-
-*Code review completed on 2025-11-12*
-*Reviewer: Claude (Sonnet 4.5)*
