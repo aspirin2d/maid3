@@ -45,12 +45,12 @@ function persistSessionToFile(session: Session | null) {
     }
     writeFileSync(sessionFilePath, JSON.stringify(session), {
       mode: 0o600, // Read/write for owner only
-      encoding: 'utf-8'
+      encoding: "utf-8",
     });
   } catch (err) {
     console.error(
-      '[Warning] Failed to save session:',
-      err instanceof Error ? err.message : String(err)
+      "[Warning] Failed to save session:",
+      err instanceof Error ? err.message : String(err),
     );
   }
 }
@@ -88,28 +88,33 @@ export default function App({ url }: { url: string }) {
     if (!session) return;
 
     fetch(`${url}/auth/get-session`, {
-      headers: { 'Authorization': `Bearer ${session.bearerToken}` }
+      headers: { Authorization: `Bearer ${session.bearerToken}` },
     })
-    .then(res => {
-      if (!res.ok) {
-        setSession(null);
-        setViews(prev => [
-          ...prev,
-          {
-            id: generateViewId(),
-            kind: 'text',
-            option: { label: 'Session expired, please login again', color: 'yellow' }
-          }
-        ]);
-      }
-    })
-    .catch(() => {
-      // Network error - keep session, will fail on next request
-    });
+      .then((res) => {
+        if (!res.ok) {
+          setSession(null);
+          setViews((prev) => [
+            ...prev,
+            {
+              id: generateViewId(),
+              kind: "text",
+              option: {
+                label: "Session expired, please login again",
+                color: "yellow",
+              },
+            },
+          ]);
+        }
+      })
+      .catch(() => {
+        // Network error - keep session, will fail on next request
+      });
   }, []); // Run once on mount
 
   return (
-    <viewContext.Provider value={{ views, setViews, session, setSession, generateViewId }}>
+    <viewContext.Provider
+      value={{ views, setViews, session, setSession, generateViewId }}
+    >
       {views.map((view) => {
         switch (view.kind) {
           case "text":

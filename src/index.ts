@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { initializeDefaultAdmin } from "./admin.js";
+import { initializeDefaultAdmin, registerAdminRoutes } from "./admin.js";
 import { auth } from "./auth.js";
 import { env } from "./env.js";
 
@@ -81,6 +81,8 @@ app.use("/api/*", async (c, next) => {
 
   await next();
 });
+
+registerAdminRoutes(app);
 
 await initializeDefaultAdmin();
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
