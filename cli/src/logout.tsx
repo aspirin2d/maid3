@@ -8,6 +8,7 @@ export default function Logout() {
   useEffect(() => {
     setSession(null);
     addViews(
+      { removeLast: true },
       {
         kind: "text",
         option: { label: "Logged out", dimColor: true },

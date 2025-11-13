@@ -53,6 +53,7 @@ export default function Signup({ url }: { url: string }) {
 
       if (key.escape) {
         addViews(
+          { removeLast: true },
           {
             kind: "text",
             option: { label: "Signup canceled", dimColor: true },
@@ -126,6 +127,7 @@ export default function Signup({ url }: { url: string }) {
           bearerToken: token ?? "",
         });
         addViews(
+          { removeLast: true },
           {
             kind: "text",
             option: {

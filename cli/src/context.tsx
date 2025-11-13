@@ -49,6 +49,18 @@ export type View =
   | LogoutView
   | AdminUsersListView;
 
+type AddViewsOptions = {
+  removeLast?: boolean;
+};
+
+type AddViewsArgs =
+  | [View, ...View[]]
+  | [AddViewsOptions, View, ...View[]];
+
+function isViewArg(arg: AddViewsOptions | View): arg is View {
+  return typeof arg === "object" && arg !== null && "kind" in arg;
+}
+
 export type Session = {
   bearerToken: string;
   email: string;
@@ -67,9 +79,18 @@ export function useAddViews() {
   if (!context) throw new Error("viewContext is not available");
 
   return useCallback(
-    (...views: View[]) => {
+    (...args: AddViewsArgs) => {
+      if (args.length === 0) return;
+
+      const first = args[0];
+      const options: AddViewsOptions = isViewArg(first) ? {} : first;
+      const views = (isViewArg(first) ? args : args.slice(1)) as View[];
       if (views.length === 0) return;
-      context.setViews((prev) => [...prev, ...views]);
+
+      context.setViews((prev) => {
+        const next = options.removeLast ? prev.slice(0, -1) : prev;
+        return [...next, ...views];
+      });
     },
     [context],
   );

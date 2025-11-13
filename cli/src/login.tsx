@@ -40,6 +40,7 @@ export default function Login({ url }: { url: string }) {
       if (key.escape) {
         setActive(false);
         addViews(
+          { removeLast: true },
           {
             kind: "text",
             option: { label: "Login canceled", dimColor: true },
@@ -100,6 +101,7 @@ export default function Login({ url }: { url: string }) {
         });
         setActive(false);
         addViews(
+          { removeLast: true },
           {
             kind: "text",
             option: {
