@@ -42,6 +42,7 @@ const authedCommands = [
 export default function Commander() {
   const addViews = useAddViews();
   const [session] = useSession();
+
   const availableCommands = useMemo(() => {
     if (!session) return guestCommands;
     const commands = [...authedCommands];

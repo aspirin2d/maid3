@@ -2,7 +2,7 @@ import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
-import { validateEmail, validateName } from "./validation.js";
+import { MIN_PASSWORD_LENGTH, validateEmail, validateName } from "./validation.js";
 
 type AdminUser = {
   id: string;
@@ -25,10 +25,15 @@ type AdminUsersResponse = {
   };
 };
 
+type ResetPasswordResponse = {
+  userId: string;
+  password: string;
+};
+
 const PAGE_SIZE = 10;
 
 type Mode = "list" | "confirm-delete" | "edit";
-type EditStep = "name" | "email" | "role";
+type EditStep = "name" | "email" | "role" | "password";
 
 export function AdminUsers({ url }: { url: string }) {
   const [session] = useSession();
@@ -46,8 +51,11 @@ export function AdminUsers({ url }: { url: string }) {
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   const exitToCommander = useCallback(
     (label: string) => {
@@ -146,7 +154,7 @@ export function AdminUsers({ url }: { url: string }) {
       cancelled = true;
       controller.abort();
     };
-  }, [session?.bearerToken, session?.isAdmin, page, url]);
+  }, [session?.bearerToken, session?.isAdmin, page, url, refreshCounter]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -162,6 +170,7 @@ export function AdminUsers({ url }: { url: string }) {
 
     setOperationLoading(true);
     setOperationError(null);
+    setOperationMessage(null);
 
     try {
       const res = await fetch(`${url}/admin/u/${selectedUser.id}`, {
@@ -183,6 +192,8 @@ export function AdminUsers({ url }: { url: string }) {
       // Refresh the list
       setMode("list");
       setPage(1);
+      setRefreshCounter((prev) => prev + 1);
+      setOperationMessage(null);
     } catch (err) {
       setOperationError(
         err instanceof Error ? err.message : "Failed to delete user",
@@ -212,8 +223,17 @@ export function AdminUsers({ url }: { url: string }) {
       return;
     }
 
+    const trimmedPassword = editPassword.trim();
+    if (trimmedPassword && trimmedPassword.length < MIN_PASSWORD_LENGTH) {
+      setOperationError(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
+      return;
+    }
+
     setOperationLoading(true);
     setOperationError(null);
+    setOperationMessage(null);
 
     try {
       const res = await fetch(`${url}/admin/u/${selectedUser.id}`, {
@@ -226,6 +246,7 @@ export function AdminUsers({ url }: { url: string }) {
           name: editName,
           email: editEmail,
           role: editRole,
+          ...(trimmedPassword ? { password: trimmedPassword } : {}),
         }),
       });
 
@@ -241,6 +262,9 @@ export function AdminUsers({ url }: { url: string }) {
       // Refresh the list
       setMode("list");
       setPage(1);
+      setRefreshCounter((prev) => prev + 1);
+      setOperationMessage(null);
+      setEditPassword("");
     } catch (err) {
       setOperationError(
         err instanceof Error ? err.message : "Failed to update user",
@@ -253,11 +277,54 @@ export function AdminUsers({ url }: { url: string }) {
     editName,
     editEmail,
     editRole,
+    editPassword,
     session?.bearerToken,
     url,
     setPage,
     setMode,
   ]);
+
+  const resetPassword = useCallback(async () => {
+    if (!selectedUser || !session?.bearerToken) return;
+
+    setOperationLoading(true);
+    setOperationError(null);
+    setOperationMessage(null);
+
+    try {
+      const res = await fetch(`${url}/admin/u/${selectedUser.id}/pwd`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.bearerToken}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        let message = `Failed to reset password (HTTP ${res.status})`;
+        try {
+          const body = await res.json();
+          if (body.error) message = body.error;
+        } catch {}
+        throw new Error(message);
+      }
+
+      const body = (await res.json()) as Partial<ResetPasswordResponse>;
+      if (!body?.password) {
+        throw new Error("Password reset succeeded but password missing");
+      }
+
+      setOperationMessage(
+        `Temporary password for ${selectedUser.email}: ${body.password}`,
+      );
+    } catch (err) {
+      setOperationError(
+        err instanceof Error ? err.message : "Failed to reset password",
+      );
+    } finally {
+      setOperationLoading(false);
+    }
+  }, [selectedUser, session?.bearerToken, url]);
 
   useInput(
     (input, key) => {
@@ -270,6 +337,7 @@ export function AdminUsers({ url }: { url: string }) {
         if (input === "n" || input === "N" || key.escape) {
           setMode("list");
           setOperationError(null);
+          setOperationMessage(null);
           return;
         }
         return;
@@ -279,6 +347,7 @@ export function AdminUsers({ url }: { url: string }) {
         if (key.escape) {
           setMode("list");
           setOperationError(null);
+          setOperationMessage(null);
           return;
         }
 
@@ -303,11 +372,24 @@ export function AdminUsers({ url }: { url: string }) {
             }
             return;
           }
+          if (editStep === "role") {
+            if (!editRole) {
+              setOperationError("Role is required");
+            } else {
+              setOperationError(null);
+              setEditStep("password");
+            }
+            return;
+          }
           return;
         }
 
         if (key.shift && key.tab) {
           setOperationError(null);
+          if (editStep === "password") {
+            setEditStep("role");
+            return;
+          }
           if (editStep === "role") {
             setEditStep("email");
             return;
@@ -332,6 +414,7 @@ export function AdminUsers({ url }: { url: string }) {
         if (selectedUser) {
           setMode("confirm-delete");
           setOperationError(null);
+          setOperationMessage(null);
         }
         return;
       }
@@ -341,9 +424,11 @@ export function AdminUsers({ url }: { url: string }) {
           setEditName(selectedUser.name ?? "");
           setEditEmail(selectedUser.email);
           setEditRole(selectedUser.role ?? "user");
+          setEditPassword("");
           setEditStep("name");
           setMode("edit");
           setOperationError(null);
+          setOperationMessage(null);
         }
         return;
       }
@@ -384,6 +469,11 @@ export function AdminUsers({ url }: { url: string }) {
 
       if (key.rightArrow && (state?.meta.hasNext ?? false)) {
         setPage((prev) => prev + 1);
+        return;
+      }
+
+      if ((input === "p" || input === "P") && selectedUser) {
+        resetPassword();
         return;
       }
     },
@@ -454,7 +544,7 @@ export function AdminUsers({ url }: { url: string }) {
           )}
         </Box>
 
-        {(editStep === "email" || editStep === "role") && (
+        {(editStep === "email" || editStep === "role" || editStep === "password") && (
           <Box columnGap={1}>
             <Text bold dimColor>
               Email:
@@ -481,16 +571,43 @@ export function AdminUsers({ url }: { url: string }) {
           </Box>
         )}
 
-        {editStep === "role" && (
+        {(editStep === "role" || editStep === "password") && (
           <Box columnGap={1}>
             <Text bold dimColor>
               Role:
             </Text>
+            {editStep === "role" ? (
+              <TextInput
+                value={editRole}
+                onChange={setEditRole}
+                placeholder="user or admin"
+                focus
+                onSubmit={() => {
+                  if (!editRole) {
+                    setOperationError("Role is required");
+                    return;
+                  }
+                  setOperationError(null);
+                  setEditStep("password");
+                }}
+              />
+            ) : (
+              <Text>{editRole}</Text>
+            )}
+          </Box>
+        )}
+
+        {editStep === "password" && (
+          <Box columnGap={1}>
+            <Text bold dimColor>
+              Password:
+            </Text>
             <TextInput
-              value={editRole}
-              onChange={setEditRole}
-              placeholder="user or admin"
+              value={editPassword}
+              onChange={setEditPassword}
+              placeholder="Leave blank to keep current"
               focus
+              mask="*"
               onSubmit={updateUser}
             />
           </Box>
@@ -503,7 +620,12 @@ export function AdminUsers({ url }: { url: string }) {
           <Text dimColor>Press Tab to continue, Shift+Tab to go back, Esc to cancel</Text>
         )}
         {editStep === "role" && (
-          <Text dimColor>Press Enter to save, Shift+Tab to go back, Esc to cancel</Text>
+          <Text dimColor>Press Tab to continue, Shift+Tab to go back, Esc to cancel</Text>
+        )}
+        {editStep === "password" && (
+          <Text dimColor>
+            Press Enter to save (leave blank to keep current password), Shift+Tab to go back, Esc to cancel
+          </Text>
         )}
 
         {operationLoading && <Text dimColor>Updating user…</Text>}
@@ -577,8 +699,11 @@ export function AdminUsers({ url }: { url: string }) {
             ↑/↓/Tab select
             {state?.meta.hasPrev && " • ← previous page"}
             {state?.meta.hasNext && " • → next page"}
-            {selectedUser && " • e edit • x delete"} • q exit
+            {selectedUser && " • e edit • x delete • p reset pwd"} • q exit
           </Text>
+          {operationLoading && <Text dimColor>Working…</Text>}
+          {operationMessage && <Text color="yellow">{operationMessage}</Text>}
+          {operationError && <Text color="red">{operationError}</Text>}
         </>
       )}
     </Box>

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -200,6 +201,11 @@ const normalizeListUsersQuery = (
   }
 
   return normalized;
+};
+
+const generateRandomPassword = (length = 20): string => {
+  const bytesNeeded = Math.ceil((length * 3) / 4);
+  return randomBytes(bytesNeeded).toString("base64url").slice(0, length);
 };
 
 type JsonParseResult<T> =
@@ -522,6 +528,22 @@ const createAdminRouter = () => {
       return c.json({ user: refreshed });
     } catch (error) {
       return handleAdminApiError(c, error, "update user");
+    }
+  });
+
+  router.post("/u/:id/pwd", async (c) => {
+    const userId = c.req.param("id");
+    const newPassword = generateRandomPassword();
+
+    try {
+      await auth.api.setUserPassword({
+        headers: c.req.raw.headers,
+        body: { userId, newPassword } as SetUserPasswordBody,
+      });
+
+      return c.json({ userId, password: newPassword });
+    } catch (error) {
+      return handleAdminApiError(c, error, "reset user password");
     }
   });
 

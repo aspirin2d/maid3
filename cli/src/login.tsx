@@ -89,23 +89,52 @@ export default function Login({ url }: { url: string }) {
         }
         const json = await res.json();
         const token = res.headers.get("set-auth-token");
+        if (!token) {
+          throw new Error("Missing auth token from server response");
+        }
+
+        const sessionController = new AbortController();
+        const sessionTimeout = setTimeout(
+          () => sessionController.abort(),
+          10000,
+        );
+
+        const sessionRes = await fetch(`${url}/auth/get-session`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: sessionController.signal,
+        });
+
+        clearTimeout(sessionTimeout);
+
+        if (!sessionRes.ok) {
+          throw new Error("Failed to verify session");
+        }
+
+        const sessionJson = await sessionRes.json();
+        const sessionUser = sessionJson?.user ?? json.user;
 
         setSession({
-          email: json.user.email,
-          bearerToken: token ?? "",
-          isAdmin: json.user.role === "admin",
+          email: sessionUser.email,
+          bearerToken: token,
+          isAdmin: sessionUser.role === "admin",
         });
+
+        const loginLabel = `Login as ${sessionUser.email}${
+          sessionUser.role === "admin" ? " [admin]" : ""
+        }`;
+
         addViews(
           [
             {
               kind: "text",
               option: {
-                label: "Login as " + json.user.email,
+                label: loginLabel,
+                dimColor: true,
               },
             },
             { kind: "commander" },
           ],
-          1,
+          -1,
         );
       } catch (e) {
         clearTimeout(timeout);
