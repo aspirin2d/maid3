@@ -32,7 +32,7 @@ type ResetPasswordResponse = {
 
 const PAGE_SIZE = 10;
 
-type Mode = "list" | "confirm-delete" | "edit";
+type Mode = "list" | "confirm-delete" | "confirm-reset" | "edit";
 type EditStep = "name" | "email" | "role" | "password";
 
 export function AdminUsers({ url }: { url: string }) {
@@ -317,6 +317,7 @@ export function AdminUsers({ url }: { url: string }) {
       setOperationMessage(
         `Temporary password for ${selectedUser.email}: ${body.password}`,
       );
+      setMode("list");
     } catch (err) {
       setOperationError(
         err instanceof Error ? err.message : "Failed to reset password",
@@ -324,7 +325,7 @@ export function AdminUsers({ url }: { url: string }) {
     } finally {
       setOperationLoading(false);
     }
-  }, [selectedUser, session?.bearerToken, url]);
+  }, [selectedUser, session?.bearerToken, url, setMode]);
 
   useInput(
     (input, key) => {
@@ -332,6 +333,22 @@ export function AdminUsers({ url }: { url: string }) {
       if (mode === "confirm-delete") {
         if (input === "y" || input === "Y") {
           deleteUser();
+          return;
+        }
+        if (input === "n" || input === "N" || key.escape) {
+          setMode("list");
+          setOperationError(null);
+          setOperationMessage(null);
+          return;
+        }
+        return;
+      }
+
+      if (mode === "confirm-reset") {
+        if (operationLoading) return;
+
+        if (input === "y" || input === "Y") {
+          resetPassword();
           return;
         }
         if (input === "n" || input === "N" || key.escape) {
@@ -473,7 +490,9 @@ export function AdminUsers({ url }: { url: string }) {
       }
 
       if ((input === "p" || input === "P") && selectedUser) {
-        resetPassword();
+        setMode("confirm-reset");
+        setOperationError(null);
+        setOperationMessage(null);
         return;
       }
     },
@@ -508,6 +527,31 @@ export function AdminUsers({ url }: { url: string }) {
         ) : (
           <Text dimColor>Press Y to confirm, N or Esc to cancel</Text>
         )}
+        {operationError && <Text color="red">{operationError}</Text>}
+      </Box>
+    );
+  }
+
+  if (mode === "confirm-reset" && selectedUser) {
+    return (
+      <Box flexDirection="column" rowGap={1}>
+        <Text bold color="yellow">
+          Reset Password
+        </Text>
+        <Box flexDirection="column" borderStyle="single" paddingX={1}>
+          <Text>{selectedUser.name ?? selectedUser.email}</Text>
+          <Text dimColor>{selectedUser.email}</Text>
+          <Text dimColor>Role: {selectedUser.role ?? "user"}</Text>
+        </Box>
+        <Text color="yellow">
+          Reset password and generate a temporary password for this user?
+        </Text>
+        {operationLoading ? (
+          <Text dimColor>Resetting password…</Text>
+        ) : (
+          <Text dimColor>Press Y to confirm, N or Esc to cancel</Text>
+        )}
+        {operationMessage && <Text color="yellow">{operationMessage}</Text>}
         {operationError && <Text color="red">{operationError}</Text>}
       </Box>
     );
