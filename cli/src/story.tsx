@@ -113,7 +113,6 @@ export function Stories({ url }: { url: string }) {
   useEffect(() => {
     if (!session?.bearerToken) return;
 
-    const controller = new AbortController();
     let cancelled = false;
 
     const fetchStories = async () => {
@@ -166,7 +165,6 @@ export function Stories({ url }: { url: string }) {
 
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, [session?.bearerToken, currentPage, apiClient, refreshTrigger]);
 
