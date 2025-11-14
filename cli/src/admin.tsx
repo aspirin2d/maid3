@@ -3,11 +3,7 @@ import TextInput from "ink-text-input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { MIN_PASSWORD_LENGTH, validateEmail, validateName } from "./validation.js";
-import {
-  createApiClient,
-  type AdminUser,
-  type AdminUsersResponse,
-} from "./api.js";
+import { createApiClient, type AdminUsersResponse } from "./api.js";
 import {
   ErrorText,
   FieldRow,
@@ -337,7 +333,10 @@ export function AdminUsers({ url }: { url: string }) {
       const nextIndex = currentIndex + direction;
 
       if (nextIndex >= 0 && nextIndex < steps.length) {
-        setEditStep(steps[nextIndex]);
+        const nextStep = steps[nextIndex];
+        if (nextStep) {
+          setEditStep(nextStep);
+        }
       }
     },
     [editStep],
@@ -409,7 +408,7 @@ export function AdminUsers({ url }: { url: string }) {
       }
 
       if (input === "q" || input === "Q") {
-        exitToCommander("Exited /admin users");
+        exitToCommander("Exited /admin/users");
         return;
       }
 
@@ -538,7 +537,7 @@ export function AdminUsers({ url }: { url: string }) {
               onSubmit={validateAndAdvanceEditStep}
             />
           ) : (
-            <>{editFormData.name}</>
+            <Text>{editFormData.name || " "}</Text>
           )}
         </FieldRow>
 
@@ -555,7 +554,7 @@ export function AdminUsers({ url }: { url: string }) {
                 onSubmit={validateAndAdvanceEditStep}
               />
             ) : (
-              <>{editFormData.email}</>
+              <Text>{editFormData.email || " "}</Text>
             )}
           </FieldRow>
         )}
@@ -573,7 +572,7 @@ export function AdminUsers({ url }: { url: string }) {
                 onSubmit={validateAndAdvanceEditStep}
               />
             ) : (
-              <>{editFormData.role}</>
+              <Text>{editFormData.role || " "}</Text>
             )}
           </FieldRow>
         )}
@@ -617,7 +616,7 @@ export function AdminUsers({ url }: { url: string }) {
 
   return (
     <FormContainer>
-      <Text bold>{`/admin users — Page ${usersData?.meta.page ?? currentPage}`}</Text>
+      <Text bold>{`/admin/users — Page ${usersData?.meta.page ?? currentPage}`}</Text>
 
       {isLoadingUsers && <LoadingText>Loading users...</LoadingText>}
 
@@ -677,9 +676,9 @@ export function AdminUsers({ url }: { url: string }) {
 
           <HelpText>
             ↑/↓/Tab select
-            {usersData?.meta.hasPrev && " • ← previous page"}
-            {usersData?.meta.hasNext && " • → next page"}
-            {selectedUser && " • e edit • x delete • p reset pwd"} • q exit
+            {usersData?.meta?.hasPrev ? " • ← previous page" : ""}
+            {usersData?.meta?.hasNext ? " • → next page" : ""}
+            {selectedUser ? " • e edit • x delete • p reset pwd" : ""} • q exit
           </HelpText>
           {isOperationLoading && <LoadingText>Working...</LoadingText>}
           {operationMessage && <WarningText>{operationMessage}</WarningText>}

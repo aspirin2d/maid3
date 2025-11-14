@@ -30,7 +30,7 @@ export type LogoutView = {
 };
 
 export type AdminUsersView = {
-  kind: "/admin users";
+  kind: "/admin/users";
   option?: never;
 };
 

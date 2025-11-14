@@ -17,7 +17,7 @@ export function WarningText({ children }: { children: string }) {
   return <Text color="yellow">{children}</Text>;
 }
 
-export function HelpText({ children }: { children: string }) {
+export function HelpText({ children }: { children: ReactNode }) {
   return <Text dimColor>{children}</Text>;
 }
 
@@ -38,7 +38,7 @@ export function FieldRow({
 }) {
   return (
     <Box columnGap={1}>
-      <FieldLabel>{label}:</FieldLabel>
+      <FieldLabel>{`${label}:`}</FieldLabel>
       {children}
     </Box>
   );

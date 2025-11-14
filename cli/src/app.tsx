@@ -137,7 +137,7 @@ export default function App({ url }: { url: string }) {
             return <Signup key={index} url={url} />;
           case "/logout":
             return <Logout key={index} />;
-          case "/admin users":
+          case "/admin/users":
             return <AdminUsers key={index} url={url} />;
         }
       })}

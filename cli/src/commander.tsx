@@ -23,12 +23,16 @@ const guestCommands = [
 
 const adminCommands = [
   {
-    id: "/admin users",
+    id: "/admin/users",
     desc: "users management",
   },
 ];
 
 const authedCommands = [
+  {
+    id: "/clear",
+    desc: "clear screen",
+  },
   {
     id: "/logout",
     desc: "logout of your current session",
@@ -70,7 +74,7 @@ export default function Commander() {
       case "/login":
       case "/signup":
       case "/logout":
-      case "/admin users":
+      case "/admin/users":
         addViews(
           [
             { kind: "text", option: { label: q.item.id, dimColor: true } },
@@ -78,7 +82,11 @@ export default function Commander() {
           ],
           1,
         );
-        return;
+        break;
+      case "/clear":
+        process.stdout.write("\x1b[2J\x1b[0;0H");
+        addViews([{ kind: "commander" }], -1);
+        break;
       case "/exit":
         addViews([
           {

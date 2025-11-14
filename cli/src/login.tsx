@@ -1,4 +1,4 @@
-import { useInput } from "ink";
+import { Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
@@ -137,19 +137,19 @@ export default function Login({ url }: { url: string }) {
             }}
           />
         ) : (
-          <>{email}</>
+          <Text>{email || " "}</Text>
         )}
       </FieldRow>
 
       {step === "password" && (
         <FieldRow label="Password">
-          <TextInput
-            value={password}
-            onChange={setPassword}
-            mask="*"
-            focus
-            onSubmit={login}
-          />
+            <TextInput
+              value={password}
+              onChange={setPassword}
+              mask="*"
+              focus
+              onSubmit={login}
+            />
         </FieldRow>
       )}
 

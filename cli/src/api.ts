@@ -11,12 +11,12 @@ type ApiResponse<T> = {
 };
 
 class ApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-  ) {
+  statusCode?: number;
+
+  constructor(message: string, statusCode?: number) {
     super(message);
     this.name = "ApiError";
+    this.statusCode = statusCode;
   }
 }
 
@@ -142,7 +142,11 @@ export type ResetPasswordResponse = {
 };
 
 export class ApiClient {
-  constructor(private baseUrl: string) {}
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   async login(request: LoginRequest): Promise<{ token: string; user: LoginResponse["user"] }> {
     const { data, headers } = await fetchWithTimeout<LoginResponse>(

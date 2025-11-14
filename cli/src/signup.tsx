@@ -1,4 +1,4 @@
-import { useInput } from "ink";
+import { Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
@@ -155,7 +155,7 @@ export default function Signup({ url }: { url: string }) {
             }}
           />
         ) : (
-          <>{name}</>
+          <Text>{name || " "}</Text>
         )}
       </FieldRow>
 
@@ -178,7 +178,7 @@ export default function Signup({ url }: { url: string }) {
               }}
             />
           ) : (
-            <>{email}</>
+            <Text>{email || " "}</Text>
           )}
         </FieldRow>
       )}
