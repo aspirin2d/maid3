@@ -1,8 +1,16 @@
-import { Box, Text, useInput } from "ink";
+import { useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword } from "./validation.js";
+import { createApiClient } from "./api.js";
+import {
+  ErrorText,
+  FieldRow,
+  FormContainer,
+  HelpText,
+  LoadingText,
+} from "./ui.js";
 
 export default function Login({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -14,6 +22,7 @@ export default function Login({ url }: { url: string }) {
 
   const [, setSession] = useSession();
   const addViews = useAddViews();
+  const apiClient = useMemo(() => createApiClient(url), [url]);
 
   useInput((_input, key) => {
     if (key.tab && !key.shift && step === "email") {
@@ -42,7 +51,7 @@ export default function Login({ url }: { url: string }) {
           },
           { kind: "commander" },
         ],
-        -1,
+        1,
       );
     }
   });
@@ -66,112 +75,56 @@ export default function Login({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const { token, user } = await apiClient.login({ email, password });
+      const sessionData = await apiClient.getSession(token);
+      const sessionUser = sessionData?.user ?? user;
 
-      try {
-        const res = await fetch(`${url}/auth/sign-in/email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+      setSession({
+        email: sessionUser.email,
+        bearerToken: token,
+        isAdmin: sessionUser.role === "admin",
+      });
 
-        if (!res.ok) {
-          // Generic error to avoid information leakage
-          throw new Error("Invalid email or password");
-        }
-        const json = await res.json();
-        const token = res.headers.get("set-auth-token");
-        if (!token) {
-          throw new Error("Missing auth token from server response");
-        }
+      const loginLabel = `Login as ${sessionUser.email}${
+        sessionUser.role === "admin" ? " [admin]" : ""
+      }`;
 
-        const sessionController = new AbortController();
-        const sessionTimeout = setTimeout(
-          () => sessionController.abort(),
-          10000,
-        );
-
-        const sessionRes = await fetch(`${url}/auth/get-session`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: sessionController.signal,
-        });
-
-        clearTimeout(sessionTimeout);
-
-        if (!sessionRes.ok) {
-          throw new Error("Failed to verify session");
-        }
-
-        const sessionJson = await sessionRes.json();
-        const sessionUser = sessionJson?.user ?? json.user;
-
-        setSession({
-          email: sessionUser.email,
-          bearerToken: token,
-          isAdmin: sessionUser.role === "admin",
-        });
-
-        const loginLabel = `Login as ${sessionUser.email}${
-          sessionUser.role === "admin" ? " [admin]" : ""
-        }`;
-
-        addViews(
-          [
-            {
-              kind: "text",
-              option: {
-                label: loginLabel,
-                dimColor: true,
-              },
+      addViews(
+        [
+          {
+            kind: "text",
+            option: {
+              label: loginLabel,
+              dimColor: true,
             },
-            { kind: "commander" },
-          ],
-          -1,
-        );
-      } catch (e) {
-        clearTimeout(timeout);
-        throw e;
-      }
+          },
+          { kind: "commander" },
+        ],
+        1,
+      );
     } catch (e) {
       if (e instanceof Error) {
-        if (e.name === "AbortError") {
-          setError("Request timeout - server not responding");
-        } else if (e instanceof TypeError) {
-          setError("Network error: Cannot connect to server");
-        } else {
-          setError(e.message);
-        }
+        setError(e.message);
       } else {
         setError("Unknown error");
       }
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, setSession, addViews]);
+  }, [apiClient, email, password, setSession, addViews]);
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>;
+    return <LoadingText>Loading...</LoadingText>;
   }
 
   return (
-    <Box flexDirection="column">
-      <Box columnGap={1}>
-        <Text bold dimColor>
-          Email:
-        </Text>
+    <FormContainer>
+      <FieldRow label="Email">
         {step === "email" ? (
           <TextInput
             value={email}
             onChange={setEmail}
-            placeholder="abc@abc.com"
+            placeholder="user@example.com"
             focus
             onSubmit={() => {
               const emailError = validateEmail(email);
@@ -184,15 +137,12 @@ export default function Login({ url }: { url: string }) {
             }}
           />
         ) : (
-          <Text>{email}</Text>
+          <>{email}</>
         )}
-      </Box>
+      </FieldRow>
 
       {step === "password" && (
-        <Box columnGap={1}>
-          <Text bold dimColor>
-            Password:
-          </Text>
+        <FieldRow label="Password">
           <TextInput
             value={password}
             onChange={setPassword}
@@ -200,18 +150,18 @@ export default function Login({ url }: { url: string }) {
             focus
             onSubmit={login}
           />
-        </Box>
+        </FieldRow>
       )}
 
       {step === "email" && (
-        <Text dimColor>Press Tab to continue, Esc to cancel.</Text>
+        <HelpText>Press Tab to continue, Esc to cancel</HelpText>
       )}
 
       {step === "password" && (
-        <Text dimColor>Press Shift+Tab to edit email, Esc to cancel.</Text>
+        <HelpText>Press Shift+Tab to go back, Esc to cancel</HelpText>
       )}
 
-      {error && <Text color="red">{error}</Text>}
-    </Box>
+      {error && <ErrorText>{error}</ErrorText>}
+    </FormContainer>
   );
 }

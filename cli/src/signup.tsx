@@ -1,8 +1,16 @@
-import { Box, Text, useInput } from "ink";
+import { useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword, validateName } from "./validation.js";
+import { createApiClient } from "./api.js";
+import {
+  ErrorText,
+  FieldRow,
+  FormContainer,
+  HelpText,
+  LoadingText,
+} from "./ui.js";
 
 export default function Signup({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -15,6 +23,7 @@ export default function Signup({ url }: { url: string }) {
 
   const [, setSession] = useSession();
   const addViews = useAddViews();
+  const apiClient = useMemo(() => createApiClient(url), [url]);
 
   useInput((_input, key) => {
     if (key.tab && !key.shift) {
@@ -87,83 +96,48 @@ export default function Signup({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const { token, user } = await apiClient.signup({
+        name,
+        email,
+        password,
+      });
 
-      try {
-        const res = await fetch(`${url}/auth/sign-up/email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name,
-            email,
-            password,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+      setSession({
+        email: user.email,
+        bearerToken: token ?? "",
+        isAdmin: user.role === "admin",
+      });
 
-        if (!res.ok) {
-          let message = "Failed to signup";
-          try {
-            const json = await res.json();
-            if (json.message) message = json.message;
-          } catch {}
-          throw new Error(message);
-        }
-        const json = await res.json();
-        const token = res.headers.get("set-auth-token");
-
-        setSession({
-          email: json.user.email,
-          bearerToken: token ?? "",
-          isAdmin: json.user.role === "admin",
-        });
-        addViews(
-          [
-            {
-              kind: "text",
-              option: {
-                label: "Signed up as " + json.user.email,
-              },
+      addViews(
+        [
+          {
+            kind: "text",
+            option: {
+              label: "Signed up as " + user.email,
             },
-            { kind: "commander" },
-          ],
-          1,
-        );
-      } catch (e) {
-        clearTimeout(timeout);
-        throw e;
-      }
+          },
+          { kind: "commander" },
+        ],
+        1,
+      );
     } catch (e) {
       if (e instanceof Error) {
-        if (e.name === "AbortError") {
-          setError("Request timeout - server not responding");
-        } else if (e instanceof TypeError) {
-          setError("Network error: Cannot connect to server");
-        } else {
-          setError(e.message);
-        }
+        setError(e.message);
       } else {
         setError("Unknown error");
       }
     } finally {
       setLoading(false);
     }
-  }, [url, name, email, password, setSession, addViews]);
+  }, [apiClient, name, email, password, setSession, addViews]);
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>;
+    return <LoadingText>Loading...</LoadingText>;
   }
 
   return (
-    <Box flexDirection="column">
-      <Box columnGap={1}>
-        <Text bold dimColor>
-          Name:
-        </Text>
+    <FormContainer>
+      <FieldRow label="Name">
         {step === "name" ? (
           <TextInput
             value={name}
@@ -181,20 +155,17 @@ export default function Signup({ url }: { url: string }) {
             }}
           />
         ) : (
-          <Text>{name}</Text>
+          <>{name}</>
         )}
-      </Box>
+      </FieldRow>
 
       {(step === "email" || step === "password") && (
-        <Box columnGap={1}>
-          <Text bold dimColor>
-            Email:
-          </Text>
+        <FieldRow label="Email">
           {step === "email" ? (
             <TextInput
               value={email}
               onChange={setEmail}
-              placeholder="abc@abc.com"
+              placeholder="user@example.com"
               focus
               onSubmit={() => {
                 const emailError = validateEmail(email);
@@ -207,16 +178,13 @@ export default function Signup({ url }: { url: string }) {
               }}
             />
           ) : (
-            <Text>{email}</Text>
+            <>{email}</>
           )}
-        </Box>
+        </FieldRow>
       )}
 
       {step === "password" && (
-        <Box columnGap={1}>
-          <Text bold dimColor>
-            Password:
-          </Text>
+        <FieldRow label="Password">
           <TextInput
             value={password}
             onChange={setPassword}
@@ -224,24 +192,22 @@ export default function Signup({ url }: { url: string }) {
             focus
             onSubmit={signup}
           />
-        </Box>
+        </FieldRow>
       )}
 
       {step === "name" && (
-        <Text dimColor>Press Tab to continue, Esc to cancel.</Text>
+        <HelpText>Press Tab to continue, Esc to cancel</HelpText>
       )}
 
       {step === "email" && (
-        <Text dimColor>
-          Press Tab to continue, Shift+Tab to go back, Esc to cancel.
-        </Text>
+        <HelpText>Press Tab to continue, Shift+Tab to go back, Esc to cancel</HelpText>
       )}
 
       {step === "password" && (
-        <Text dimColor>Press Shift+Tab to go back, Esc to cancel.</Text>
+        <HelpText>Press Shift+Tab to go back, Esc to cancel</HelpText>
       )}
 
-      {error && <Text color="red">{error}</Text>}
-    </Box>
+      {error && <ErrorText>{error}</ErrorText>}
+    </FormContainer>
   );
 }
