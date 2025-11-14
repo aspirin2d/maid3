@@ -15,6 +15,7 @@ import {
   FormContainer,
   HelpText,
   LoadingText,
+  Select,
   WarningText,
 } from "./ui.js";
 
@@ -38,6 +39,22 @@ const createEmptyStoryForm = (): StoryFormData => ({
 const PAGE_SIZE = 10;
 const EMBEDDING_PROVIDERS = ["openai", "ollama", "dashscope"] as const;
 const LLM_PROVIDERS = ["openai", "ollama"] as const;
+
+const EMBEDDING_OPTIONS = [
+  { label: "Default (server config)", value: "" },
+  ...EMBEDDING_PROVIDERS.map((provider) => ({
+    label: provider,
+    value: provider,
+  })),
+];
+
+const LLM_OPTIONS = [
+  { label: "Default (server config)", value: "" },
+  ...LLM_PROVIDERS.map((provider) => ({
+    label: provider,
+    value: provider,
+  })),
+];
 
 function clampIndex(index: number, length: number): number {
   if (length === 0) return 0;
@@ -256,12 +273,13 @@ export function Stories({ url }: { url: string }) {
       };
 
       if (storyFormData.embeddingProvider) {
-        payload.embeddingProvider = storyFormData
-          .embeddingProvider as CreateStoryRequest["embeddingProvider"];
+        payload.embeddingProvider =
+          storyFormData.embeddingProvider as CreateStoryRequest["embeddingProvider"];
       }
 
       if (storyFormData.llmProvider) {
-        payload.llmProvider = storyFormData.llmProvider as CreateStoryRequest["llmProvider"];
+        payload.llmProvider =
+          storyFormData.llmProvider as CreateStoryRequest["llmProvider"];
       }
 
       if (storyFormData.handler.trim()) {
@@ -309,11 +327,9 @@ export function Stories({ url }: { url: string }) {
     }
 
     const embedding = storyFormData.embeddingProvider;
-    if (
-      embedding &&
-      embedding !== (storyBeingEdited.embeddingProvider ?? "")
-    ) {
-      payload.embeddingProvider = embedding as UpdateStoryRequest["embeddingProvider"];
+    if (embedding && embedding !== (storyBeingEdited.embeddingProvider ?? "")) {
+      payload.embeddingProvider =
+        embedding as UpdateStoryRequest["embeddingProvider"];
     }
 
     const llm = storyFormData.llmProvider;
@@ -340,11 +356,8 @@ export function Stories({ url }: { url: string }) {
         payload,
       );
 
-      setViewMode("list");
       setStoryBeingEdited(null);
       resetFormState();
-      setOperationMessage("Story updated");
-      triggerRefresh();
     } catch (err) {
       setOperationError(
         err instanceof Error ? err.message : "Failed to update story",
@@ -359,7 +372,6 @@ export function Stories({ url }: { url: string }) {
     apiClient,
     validateStoryForm,
     resetFormState,
-    triggerRefresh,
     clearOperationState,
   ]);
 
@@ -604,9 +616,7 @@ export function Stories({ url }: { url: string }) {
       <FormContainer>
         <Text bold>
           {isEditing ? "Edit Story" : "Create New Story"}
-          {isEditing && storyBeingEdited
-            ? ` — ${storyBeingEdited.name}`
-            : ""}
+          {isEditing && storyBeingEdited ? ` — ${storyBeingEdited.name}` : ""}
         </Text>
 
         <FieldRow label="Name">
@@ -629,48 +639,37 @@ export function Stories({ url }: { url: string }) {
           formStep === "llmProvider" ||
           formStep === "handler") && (
           <FieldRow label="Embedding">
-            {formStep === "embeddingProvider" ? (
-              <TextInput
-                value={storyFormData.embeddingProvider}
-                onChange={(value) =>
+            <Select
+              options={EMBEDDING_OPTIONS}
+              value={storyFormData.embeddingProvider}
+              onChange={(value) =>
                 setStoryFormData((prev) => ({
                   ...prev,
                   embeddingProvider: value,
                 }))
               }
-              placeholder={
-                isEditing
-                  ? `${EMBEDDING_PROVIDERS.join("/")} or leave blank to keep current`
-                  : `${EMBEDDING_PROVIDERS.join("/")} or blank`
-              }
-                focus
-                onSubmit={validateAndAdvanceFormStep}
-              />
-            ) : (
-              <Text>{storyFormData.embeddingProvider || "default"}</Text>
-            )}
+              placeholder="Default (server config)"
+              isFocused={formStep === "embeddingProvider"}
+              onSubmit={validateAndAdvanceFormStep}
+            />
           </FieldRow>
         )}
 
         {(formStep === "llmProvider" || formStep === "handler") && (
           <FieldRow label="LLM">
-            {formStep === "llmProvider" ? (
-              <TextInput
-                value={storyFormData.llmProvider}
-                onChange={(value) =>
-                setStoryFormData((prev) => ({ ...prev, llmProvider: value }))
+            <Select
+              options={LLM_OPTIONS}
+              value={storyFormData.llmProvider}
+              onChange={(value) =>
+                setStoryFormData((prev) => ({
+                  ...prev,
+                  llmProvider: value,
+                }))
               }
-              placeholder={
-                isEditing
-                  ? `${LLM_PROVIDERS.join("/")} or leave blank to keep current`
-                  : `${LLM_PROVIDERS.join("/")} or blank`
-              }
-                focus
-                onSubmit={validateAndAdvanceFormStep}
-              />
-            ) : (
-              <Text>{storyFormData.llmProvider || "default"}</Text>
-            )}
+              placeholder="Default (server config)"
+              isFocused={formStep === "llmProvider"}
+              onSubmit={validateAndAdvanceFormStep}
+            />
           </FieldRow>
         )}
 
@@ -682,7 +681,9 @@ export function Stories({ url }: { url: string }) {
                 setStoryFormData((prev) => ({ ...prev, handler: value }))
               }
               placeholder={
-                isEditing ? "Leave blank to keep current" : "Leave blank for default"
+                isEditing
+                  ? "Leave blank to keep current"
+                  : "Leave blank for default"
               }
               focus
               onSubmit={isEditing ? updateStory : createStory}
@@ -699,12 +700,14 @@ export function Stories({ url }: { url: string }) {
         )}
         {formStep === "embeddingProvider" && (
           <HelpText>
-            Press Tab to continue, Shift+Tab to go back, Esc to cancel
+            Use ↑/↓ to choose a model, Tab to continue, Shift+Tab to go back,
+            Esc to cancel
           </HelpText>
         )}
         {formStep === "llmProvider" && (
           <HelpText>
-            Press Tab to continue, Shift+Tab to go back, Esc to cancel
+            Use ↑/↓ to choose a model, Tab to continue, Shift+Tab to go back,
+            Esc to cancel
           </HelpText>
         )}
         {formStep === "handler" && (
