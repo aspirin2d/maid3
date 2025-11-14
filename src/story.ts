@@ -31,17 +31,6 @@ const updateStorySchema = createStorySchema
     { message: "Provide at least one field to update" },
   );
 
-const createMessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"] as const),
-  content: z.string().min(1),
-  extracted: z.boolean().optional(),
-});
-
-const messageParamsSchema = z.object({
-  id: z.coerce.number().int().positive("Invalid story id"),
-  messageId: z.coerce.number().int().positive("Invalid message id"),
-});
-
 type JsonParseResult<T> =
   | { success: true; data: T }
   | { success: false; response: Response };
