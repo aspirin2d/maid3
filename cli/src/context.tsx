@@ -34,13 +34,25 @@ export type AdminUsersView = {
   option?: never;
 };
 
+export type UpdateNameView = {
+  kind: "/update/name";
+  option?: never;
+};
+
+export type UpdatePasswordView = {
+  kind: "/update/password";
+  option?: never;
+};
+
 export type View =
   | TextView
   | CommanderView
   | LoginView
   | SignupView
   | LogoutView
-  | AdminUsersView;
+  | AdminUsersView
+  | UpdateNameView
+  | UpdatePasswordView;
 
 export type Session = {
   bearerToken: string;

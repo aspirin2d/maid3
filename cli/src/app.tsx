@@ -9,6 +9,8 @@ import Login from "./login.js";
 import Signup from "./signup.js";
 import Logout from "./logout.js";
 import { AdminUsers } from "./admin.js";
+import UpdateName from "./update-name.js";
+import UpdatePassword from "./update-password.js";
 
 const sessionFilePath = path.join(homedir(), ".maid_session");
 
@@ -139,6 +141,10 @@ export default function App({ url }: { url: string }) {
             return <Logout key={index} />;
           case "/admin/users":
             return <AdminUsers key={index} url={url} />;
+          case "/update/name":
+            return <UpdateName key={index} url={url} />;
+          case "/update/password":
+            return <UpdatePassword key={index} url={url} />;
         }
       })}
     </viewContext.Provider>

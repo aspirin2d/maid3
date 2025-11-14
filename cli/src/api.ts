@@ -103,7 +103,9 @@ export type SignupResponse = {
 
 export type SessionResponse = {
   user: {
+    id?: string;
     email: string;
+    name?: string;
     role?: string;
   };
 };
@@ -139,6 +141,27 @@ export type UpdateUserRequest = {
 export type ResetPasswordResponse = {
   userId: string;
   password: string;
+};
+
+export type UpdateNameRequest = {
+  name: string;
+};
+
+export type UpdateNameResponse = {
+  status: string;
+  user: SessionResponse["user"];
+};
+
+export type UpdatePasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+  revokeOtherSessions?: boolean;
+};
+
+export type UpdatePasswordResponse = {
+  status: string;
+  token: string | null;
+  user: SessionResponse["user"];
 };
 
 export class ApiClient {
@@ -269,6 +292,46 @@ export class ApiClient {
     }
 
     return data;
+  }
+
+  async updateName(
+    token: string,
+    request: UpdateNameRequest,
+  ): Promise<UpdateNameResponse> {
+    const { data } = await fetchWithTimeout<UpdateNameResponse>(
+      `${this.baseUrl}/update/name`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      },
+    );
+
+    return data;
+  }
+
+  async updatePassword(
+    token: string,
+    request: UpdatePasswordRequest,
+  ): Promise<UpdatePasswordResponse> {
+    const { data, headers } = await fetchWithTimeout<UpdatePasswordResponse>(
+      `${this.baseUrl}/update/password`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      },
+    );
+
+    const updatedToken = data.token ?? headers.get("set-auth-token") ?? null;
+
+    return { ...data, token: updatedToken };
   }
 }
 

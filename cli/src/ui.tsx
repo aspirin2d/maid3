@@ -46,7 +46,7 @@ export function FieldRow({
 
 export function FormContainer({ children }: { children: ReactNode }) {
   return (
-    <Box flexDirection="column" rowGap={1}>
+    <Box flexDirection="column" marginY={1}>
       {children}
     </Box>
   );

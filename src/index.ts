@@ -1,17 +1,23 @@
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { z } from "zod";
 import { initializeDefaultAdmin, registerAdminRoutes } from "./admin.js";
 import { auth } from "./auth.js";
 import { env } from "./env.js";
 
-const app = new Hono<{
+type AppEnv = {
   Variables: {
     user: typeof auth.$Infer.Session.user | null;
     session: typeof auth.$Infer.Session.session | null;
   };
-}>();
+};
+
+type AppContext = Context<AppEnv>;
+
+const app = new Hono<AppEnv>();
 
 // Global error handler
 app.onError((err, c) => {
@@ -66,6 +72,63 @@ app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+const updateNameSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100),
+});
+
+const updatePasswordSchema = z.object({
+  currentPassword: z
+    .string()
+    .min(8, "Current password must be at least 8 characters"),
+  newPassword: z.string().min(8, "New password must be at least 8 characters"),
+  revokeOtherSessions: z.boolean().optional(),
+});
+
+const parseJsonBody = async <T>(c: AppContext, schema: z.ZodSchema<T>) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch (error) {
+    console.error("Failed to parse JSON body", error);
+    return {
+      success: false as const,
+      response: c.json({ error: "Invalid JSON body" }, 400),
+    };
+  }
+
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      response: c.json(
+        { error: "Invalid request body", details: z.treeifyError(parsed.error) },
+        400,
+      ),
+    };
+  }
+
+  return { success: true as const, data: parsed.data };
+};
+
+const handleUserApiError = (
+  c: AppContext,
+  error: unknown,
+  fallbackMessage: string,
+) => {
+  console.error(fallbackMessage, error);
+  const status =
+    typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: number }).status) || 500
+      : 500;
+  const normalizedStatus =
+    status >= 400 && status <= 599
+      ? (status as ContentfulStatusCode)
+      : (500 as ContentfulStatusCode);
+  const message =
+    error instanceof Error ? error.message : fallbackMessage;
+  return c.json({ error: message }, normalizedStatus);
+};
+
 // Auth api
 app.use("/api/*", async (c, next) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -80,6 +143,57 @@ app.use("/api/*", async (c, next) => {
   c.set("session", session.session);
 
   await next();
+});
+
+app.post("/api/update/name", async (c) => {
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+
+  const body = await parseJsonBody(c, updateNameSchema);
+  if (!body.success) return body.response;
+
+  try {
+    await auth.api.updateUser({
+      headers: c.req.raw.headers,
+      body: { name: body.data.name },
+    });
+
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+    return c.json({
+      status: "success",
+      user: session?.user ?? { ...user, name: body.data.name },
+    });
+  } catch (error) {
+    return handleUserApiError(c, error, "Failed to update name");
+  }
+});
+
+app.post("/api/update/password", async (c) => {
+  const user = c.get("user");
+  if (!user) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+
+  const body = await parseJsonBody(c, updatePasswordSchema);
+  if (!body.success) return body.response;
+
+  try {
+    const result = await auth.api.changePassword({
+      headers: c.req.raw.headers,
+      body: body.data,
+    });
+
+    return c.json({
+      status: "success",
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error) {
+    return handleUserApiError(c, error, "Failed to update password");
+  }
 });
 
 registerAdminRoutes(app);

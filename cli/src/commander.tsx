@@ -30,6 +30,14 @@ const adminCommands = [
 
 const authedCommands = [
   {
+    id: "/update/name",
+    desc: "update your name",
+  },
+  {
+    id: "/update/password",
+    desc: "update your password",
+  },
+  {
     id: "/clear",
     desc: "clear screen",
   },
@@ -75,6 +83,8 @@ export default function Commander() {
       case "/signup":
       case "/logout":
       case "/admin/users":
+      case "/update/name":
+      case "/update/password":
         addViews(
           [
             { kind: "text", option: { label: q.item.id, dimColor: true } },
@@ -113,7 +123,7 @@ export default function Commander() {
         searchList.map((res, index) => (
           <Box flexDirection="column" key={index}>
             <Box>
-              <Box width={14}>
+              <Box width={18}>
                 <Text
                   color={index === 0 ? "cyan" : undefined}
                   bold={index === 0}
