@@ -107,48 +107,134 @@ export async function extractMemory(userId: string): Promise<{
     MemoryUpdateSchema,
   );
 
+  type PreparedDecision =
+    | {
+        type: "ADD";
+        text: string;
+        metadata: {
+          category: string;
+          importance: number;
+          confidence: number;
+        };
+        embeddingKey: string;
+      }
+    | {
+        type: "UPDATE";
+        memoryIndex: number;
+        text: string;
+        embeddingKey: string;
+      };
+
+  const embeddingByText = new Map<string, number[]>();
+  factTexts.forEach((text, index) => {
+    if (!embeddingByText.has(text)) {
+      embeddingByText.set(text, factEmbeddings[index]);
+    }
+  });
+
+  const textsToEmbed: string[] = [];
+  const embedTextSet = new Set<string>();
+  const queueEmbeddingText = (text: string) => {
+    if (text.length === 0 || embeddingByText.has(text) || embedTextSet.has(text)) {
+      return;
+    }
+    embedTextSet.add(text);
+    textsToEmbed.push(text);
+  };
+
+  const preparedDecisions: PreparedDecision[] = [];
+  for (const decision of parsedDecisions.memory) {
+    const decisionId = parseInt(decision.id, 10);
+    if (decision.event === "ADD") {
+      const factIndex = decisionId - startFactId;
+      if (factIndex < 0 || factIndex >= unifiedNewFacts.length) {
+        continue;
+      }
+      const fact = facts[factIndex];
+      const factEmbedding = factEmbeddings[factIndex];
+      if (!factEmbedding) {
+        continue;
+      }
+
+      const hasCustomText = Boolean(decision.text && decision.text.length > 0);
+      const text = hasCustomText ? decision.text : fact.text;
+      queueEmbeddingText(text);
+
+      preparedDecisions.push({
+        type: "ADD",
+        text,
+        metadata: {
+          category: fact.category,
+          importance: fact.importance,
+          confidence: fact.confidence,
+        },
+        embeddingKey: text,
+      });
+    } else if (decision.event === "UPDATE") {
+      const memoryIndex = decisionId - 1;
+      if (memoryIndex < 0 || memoryIndex >= unifiedExistingMemories.length) {
+        continue;
+      }
+
+      const text = decision.text;
+      queueEmbeddingText(text);
+      preparedDecisions.push({
+        type: "UPDATE",
+        memoryIndex,
+        text,
+        embeddingKey: text,
+      });
+    }
+  }
+
+  const embeddedOverrideVectors =
+    textsToEmbed.length > 0 ? await Embeddding(textsToEmbed) : [];
+  textsToEmbed.forEach((text, index) => {
+    embeddingByText.set(text, embeddedOverrideVectors[index]);
+  });
+
   // Step 5: Apply memory decisions and mark messages
   let memoriesUpdated = 0;
   let memoriesAdded = 0;
   await db.transaction(async (tx) => {
-    // Process memory decisions
-    for (const decision of parsedDecisions.memory) {
-      const decisionId = parseInt(decision.id, 10);
-      if (decision.event === "ADD") {
-        const factIndex = decisionId - startFactId;
-        if (factIndex >= 0 && factIndex < unifiedNewFacts.length) {
-          const fact = facts[factIndex];
-          const embedding = await Embeddding(decision.text || fact.text);
-          // Insert new memory with the fact's text (or decision text if provided)
-          await tx.insert(memory).values({
-            userId: userId,
-            content: decision.text || fact.text,
-            embedding: embedding,
-            category: fact.category,
-            importance: fact.importance,
-            confidence: fact.confidence,
-            action: "ADD",
-          });
-          memoriesAdded++;
+    for (const decision of preparedDecisions) {
+      if (decision.type === "ADD") {
+        const embedding = embeddingByText.get(decision.embeddingKey);
+        if (!embedding) {
+          continue;
         }
-      } else if (decision.event === "UPDATE") {
-        // Find the corresponding existing memory by unified ID
-        const memoryIndex = decisionId - 1;
-        if (memoryIndex >= 0 && memoryIndex < unifiedExistingMemories.length) {
-          const originalMemoryId =
-            unifiedExistingMemories[memoryIndex].originalId;
-          const embedding = await Embeddding(decision.text);
-          await tx
-            .update(memory)
-            .set({
-              content: decision.text,
-              prevContent: unifiedExistingMemories[memoryIndex].text,
-              embedding: embedding,
-              action: "UPDATE",
-            })
-            .where(eq(memory.id, originalMemoryId));
-          memoriesUpdated++;
+
+        await tx.insert(memory).values({
+          userId: userId,
+          content: decision.text,
+          embedding,
+          category: decision.metadata.category,
+          importance: decision.metadata.importance,
+          confidence: decision.metadata.confidence,
+          action: "ADD",
+        });
+        memoriesAdded++;
+      } else {
+        const originalMemory =
+          unifiedExistingMemories[decision.memoryIndex] ?? null;
+        if (!originalMemory) {
+          continue;
         }
+        const embedding = embeddingByText.get(decision.embeddingKey);
+        if (!embedding) {
+          continue;
+        }
+
+        await tx
+          .update(memory)
+          .set({
+            content: decision.text,
+            prevContent: originalMemory.text,
+            embedding,
+            action: "UPDATE",
+          })
+          .where(eq(memory.id, originalMemory.originalId));
+        memoriesUpdated++;
       }
     }
 
