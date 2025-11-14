@@ -1,9 +1,16 @@
-import { Box, Text, useInput } from "ink";
+import { useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword, validateName } from "./validation.js";
 import { createApiClient } from "./api.js";
+import {
+  ErrorText,
+  FieldRow,
+  FormContainer,
+  HelpText,
+  LoadingText,
+} from "./ui.js";
 
 export default function Signup({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -125,15 +132,12 @@ export default function Signup({ url }: { url: string }) {
   }, [apiClient, name, email, password, setSession, addViews]);
 
   if (loading) {
-    return <Text color="gray">Loading...</Text>;
+    return <LoadingText>Loading...</LoadingText>;
   }
 
   return (
-    <Box flexDirection="column">
-      <Box columnGap={1}>
-        <Text bold dimColor>
-          Name:
-        </Text>
+    <FormContainer>
+      <FieldRow label="Name">
         {step === "name" ? (
           <TextInput
             value={name}
@@ -151,20 +155,17 @@ export default function Signup({ url }: { url: string }) {
             }}
           />
         ) : (
-          <Text>{name}</Text>
+          <>{name}</>
         )}
-      </Box>
+      </FieldRow>
 
       {(step === "email" || step === "password") && (
-        <Box columnGap={1}>
-          <Text bold dimColor>
-            Email:
-          </Text>
+        <FieldRow label="Email">
           {step === "email" ? (
             <TextInput
               value={email}
               onChange={setEmail}
-              placeholder="abc@abc.com"
+              placeholder="user@example.com"
               focus
               onSubmit={() => {
                 const emailError = validateEmail(email);
@@ -177,16 +178,13 @@ export default function Signup({ url }: { url: string }) {
               }}
             />
           ) : (
-            <Text>{email}</Text>
+            <>{email}</>
           )}
-        </Box>
+        </FieldRow>
       )}
 
       {step === "password" && (
-        <Box columnGap={1}>
-          <Text bold dimColor>
-            Password:
-          </Text>
+        <FieldRow label="Password">
           <TextInput
             value={password}
             onChange={setPassword}
@@ -194,24 +192,22 @@ export default function Signup({ url }: { url: string }) {
             focus
             onSubmit={signup}
           />
-        </Box>
+        </FieldRow>
       )}
 
       {step === "name" && (
-        <Text dimColor>Press Tab to continue, Esc to cancel.</Text>
+        <HelpText>Press Tab to continue, Esc to cancel</HelpText>
       )}
 
       {step === "email" && (
-        <Text dimColor>
-          Press Tab to continue, Shift+Tab to go back, Esc to cancel.
-        </Text>
+        <HelpText>Press Tab to continue, Shift+Tab to go back, Esc to cancel</HelpText>
       )}
 
       {step === "password" && (
-        <Text dimColor>Press Shift+Tab to go back, Esc to cancel.</Text>
+        <HelpText>Press Shift+Tab to go back, Esc to cancel</HelpText>
       )}
 
-      {error && <Text color="red">{error}</Text>}
-    </Box>
+      {error && <ErrorText>{error}</ErrorText>}
+    </FormContainer>
   );
 }

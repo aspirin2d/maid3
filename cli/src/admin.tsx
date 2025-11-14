@@ -8,6 +8,14 @@ import {
   type AdminUser,
   type AdminUsersResponse,
 } from "./api.js";
+import {
+  ErrorText,
+  FieldRow,
+  FormContainer,
+  HelpText,
+  LoadingText,
+  WarningText,
+} from "./ui.js";
 
 type ViewMode = "list" | "confirm-delete" | "confirm-reset" | "edit";
 type EditStep = "name" | "email" | "role" | "password";
@@ -459,18 +467,16 @@ export function AdminUsers({ url }: { url: string }) {
   );
 
   if (!session) {
-    return <Text color="yellow">Please login to view admin users.</Text>;
+    return <WarningText>Please login to view admin users</WarningText>;
   }
 
   if (!session.isAdmin) {
-    return (
-      <Text color="red">Admin privileges are required for this view.</Text>
-    );
+    return <ErrorText>Admin privileges are required for this view</ErrorText>;
   }
 
   if (viewMode === "confirm-delete" && selectedUser) {
     return (
-      <Box flexDirection="column" rowGap={1}>
+      <FormContainer>
         <Text bold color="red">
           Delete User
         </Text>
@@ -479,20 +485,20 @@ export function AdminUsers({ url }: { url: string }) {
           <Text dimColor>{selectedUser.email}</Text>
           <Text dimColor>Role: {selectedUser.role ?? DEFAULT_ROLE}</Text>
         </Box>
-        <Text color="yellow">Are you sure you want to delete this user?</Text>
+        <WarningText>Are you sure you want to delete this user?</WarningText>
         {isOperationLoading ? (
-          <Text dimColor>Deleting user...</Text>
+          <LoadingText>Deleting user...</LoadingText>
         ) : (
-          <Text dimColor>Press Y to confirm, N or Esc to cancel</Text>
+          <HelpText>Press Y to confirm, N or Esc to cancel</HelpText>
         )}
-        {operationError && <Text color="red">{operationError}</Text>}
-      </Box>
+        {operationError && <ErrorText>{operationError}</ErrorText>}
+      </FormContainer>
     );
   }
 
   if (viewMode === "confirm-reset" && selectedUser) {
     return (
-      <Box flexDirection="column" rowGap={1}>
+      <FormContainer>
         <Text bold color="yellow">
           Reset Password
         </Text>
@@ -501,29 +507,26 @@ export function AdminUsers({ url }: { url: string }) {
           <Text dimColor>{selectedUser.email}</Text>
           <Text dimColor>Role: {selectedUser.role ?? DEFAULT_ROLE}</Text>
         </Box>
-        <Text color="yellow">
+        <WarningText>
           Reset password and generate a temporary password for this user?
-        </Text>
+        </WarningText>
         {isOperationLoading ? (
-          <Text dimColor>Resetting password...</Text>
+          <LoadingText>Resetting password...</LoadingText>
         ) : (
-          <Text dimColor>Press Y to confirm, N or Esc to cancel</Text>
+          <HelpText>Press Y to confirm, N or Esc to cancel</HelpText>
         )}
-        {operationMessage && <Text color="yellow">{operationMessage}</Text>}
-        {operationError && <Text color="red">{operationError}</Text>}
-      </Box>
+        {operationMessage && <WarningText>{operationMessage}</WarningText>}
+        {operationError && <ErrorText>{operationError}</ErrorText>}
+      </FormContainer>
     );
   }
 
   if (viewMode === "edit" && selectedUser) {
     return (
-      <Box flexDirection="column" rowGap={1}>
+      <FormContainer>
         <Text bold>Edit User: {selectedUser.email}</Text>
 
-        <Box columnGap={1}>
-          <Text bold dimColor>
-            Name:
-          </Text>
+        <FieldRow label="Name">
           {editStep === "name" ? (
             <TextInput
               value={editFormData.name}
@@ -535,15 +538,12 @@ export function AdminUsers({ url }: { url: string }) {
               onSubmit={validateAndAdvanceEditStep}
             />
           ) : (
-            <Text>{editFormData.name}</Text>
+            <>{editFormData.name}</>
           )}
-        </Box>
+        </FieldRow>
 
         {(editStep === "email" || editStep === "role" || editStep === "password") && (
-          <Box columnGap={1}>
-            <Text bold dimColor>
-              Email:
-            </Text>
+          <FieldRow label="Email">
             {editStep === "email" ? (
               <TextInput
                 value={editFormData.email}
@@ -555,16 +555,13 @@ export function AdminUsers({ url }: { url: string }) {
                 onSubmit={validateAndAdvanceEditStep}
               />
             ) : (
-              <Text>{editFormData.email}</Text>
+              <>{editFormData.email}</>
             )}
-          </Box>
+          </FieldRow>
         )}
 
         {(editStep === "role" || editStep === "password") && (
-          <Box columnGap={1}>
-            <Text bold dimColor>
-              Role:
-            </Text>
+          <FieldRow label="Role">
             {editStep === "role" ? (
               <TextInput
                 value={editFormData.role}
@@ -576,16 +573,13 @@ export function AdminUsers({ url }: { url: string }) {
                 onSubmit={validateAndAdvanceEditStep}
               />
             ) : (
-              <Text>{editFormData.role}</Text>
+              <>{editFormData.role}</>
             )}
-          </Box>
+          </FieldRow>
         )}
 
         {editStep === "password" && (
-          <Box columnGap={1}>
-            <Text bold dimColor>
-              Password:
-            </Text>
+          <FieldRow label="Password">
             <TextInput
               value={editFormData.password}
               onChange={(value) =>
@@ -596,42 +590,38 @@ export function AdminUsers({ url }: { url: string }) {
               mask="*"
               onSubmit={updateUser}
             />
-          </Box>
+          </FieldRow>
         )}
 
         {editStep === "name" && (
-          <Text dimColor>Press Tab to continue, Esc to cancel</Text>
+          <HelpText>Press Tab to continue, Esc to cancel</HelpText>
         )}
         {editStep === "email" && (
-          <Text dimColor>
-            Press Tab to continue, Shift+Tab to go back, Esc to cancel
-          </Text>
+          <HelpText>Press Tab to continue, Shift+Tab to go back, Esc to cancel</HelpText>
         )}
         {editStep === "role" && (
-          <Text dimColor>
-            Press Tab to continue, Shift+Tab to go back, Esc to cancel
-          </Text>
+          <HelpText>Press Tab to continue, Shift+Tab to go back, Esc to cancel</HelpText>
         )}
         {editStep === "password" && (
-          <Text dimColor>
+          <HelpText>
             Press Enter to save (leave blank to keep current password), Shift+Tab to go
             back, Esc to cancel
-          </Text>
+          </HelpText>
         )}
 
-        {isOperationLoading && <Text dimColor>Updating user...</Text>}
-        {operationError && <Text color="red">{operationError}</Text>}
-      </Box>
+        {isOperationLoading && <LoadingText>Updating user...</LoadingText>}
+        {operationError && <ErrorText>{operationError}</ErrorText>}
+      </FormContainer>
     );
   }
 
   return (
-    <Box flexDirection="column" rowGap={1}>
+    <FormContainer>
       <Text bold>{`/admin users — Page ${usersData?.meta.page ?? currentPage}`}</Text>
 
-      {isLoadingUsers && <Text dimColor>Loading users...</Text>}
+      {isLoadingUsers && <LoadingText>Loading users...</LoadingText>}
 
-      {loadError && <Text color="red">{loadError}</Text>}
+      {loadError && <ErrorText>{loadError}</ErrorText>}
 
       {!isLoadingUsers && !loadError && (
         <>
@@ -655,7 +645,7 @@ export function AdminUsers({ url }: { url: string }) {
               })}
             </Box>
           ) : (
-            <Text dimColor>No users found.</Text>
+            <Text dimColor>No users found</Text>
           )}
 
           {selectedUser && (
@@ -685,17 +675,17 @@ export function AdminUsers({ url }: { url: string }) {
             </Text>
           </Box>
 
-          <Text dimColor>
+          <HelpText>
             ↑/↓/Tab select
             {usersData?.meta.hasPrev && " • ← previous page"}
             {usersData?.meta.hasNext && " • → next page"}
             {selectedUser && " • e edit • x delete • p reset pwd"} • q exit
-          </Text>
-          {isOperationLoading && <Text dimColor>Working...</Text>}
-          {operationMessage && <Text color="yellow">{operationMessage}</Text>}
-          {operationError && <Text color="red">{operationError}</Text>}
+          </HelpText>
+          {isOperationLoading && <LoadingText>Working...</LoadingText>}
+          {operationMessage && <WarningText>{operationMessage}</WarningText>}
+          {operationError && <ErrorText>{operationError}</ErrorText>}
         </>
       )}
-    </Box>
+    </FormContainer>
   );
 }
