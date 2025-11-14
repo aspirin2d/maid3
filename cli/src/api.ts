@@ -190,6 +190,11 @@ export type CreateStoryResponse = {
 
 export type UpdateStoryRequest = Partial<CreateStoryRequest>;
 
+export type HelloResponse = {
+  greeting: string;
+  detail: string;
+};
+
 
 export class ApiClient {
   private baseUrl: string;
@@ -413,6 +418,22 @@ export class ApiClient {
         },
       },
     );
+  }
+
+  async getHelloMessage(token?: string): Promise<HelloResponse> {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const { data } = await fetchWithTimeout<HelloResponse>(
+      `${this.baseUrl}/openai/hello`,
+      {
+        headers,
+      },
+    );
+
+    return data;
   }
 
 }

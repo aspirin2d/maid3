@@ -49,6 +49,11 @@ export type StoryView = {
   option?: never;
 };
 
+export type LlmHelloView = {
+  kind: "/llm/hello";
+  option?: never;
+};
+
 export type View =
   | TextView
   | CommanderView
@@ -58,7 +63,8 @@ export type View =
   | AdminUsersView
   | UpdateNameView
   | UpdatePasswordView
-  | StoryView;
+  | StoryView
+  | LlmHelloView;
 
 export type Session = {
   bearerToken: string;

@@ -11,6 +11,7 @@ import Logout from "./logout.js";
 import { AdminUsers } from "./admin.js";
 import UpdateName from "./update-name.js";
 import UpdatePassword from "./update-password.js";
+import { LlmHello } from "./llm-hello.js";
 import { Stories } from "./story.js";
 
 const sessionFilePath = path.join(homedir(), ".maid_session");
@@ -152,6 +153,8 @@ export default function App({ url }: { url: string }) {
             return <UpdatePassword key={index} url={url} />;
           case "/story":
             return <Stories key={index} url={url} />;
+          case "/llm/hello":
+            return <LlmHello key={index} url={url} />;
         }
       })}
     </viewContext.Provider>

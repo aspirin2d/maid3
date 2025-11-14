@@ -26,6 +26,9 @@ importers:
       ink-password-input:
         specifier: ^2.0.0
         version: 2.0.0
+      openai:
+        specifier: ^6.9.0
+        version: 6.9.0(zod@4.1.12)
       pg:
         specifier: ^8.16.3
         version: 8.16.3
@@ -653,6 +656,18 @@ packages:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
 
+  openai@6.9.0:
+    resolution: {integrity: sha512-n2sJRYmM+xfJ0l3OfH8eNnIyv3nQY7L08gZQu3dw6wSdfPtKAk92L83M2NIP5SS8Cl/bsBBG3yKzEOjkx0O+7A==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   pg-cloudflare@1.2.7:
     resolution: {integrity: sha512-YgCtzMH0ptvZJslLM1ffsY4EuGaU0cx4XSdXLRFae8bPP4dS5xL1tNB3k2o/N64cHJpwU7dxKli/nZ2lUa5fLg==}
 
@@ -1238,6 +1253,10 @@ snapshots:
   nanostores@1.0.1: {}
 
   object-assign@4.1.1: {}
+
+  openai@6.9.0(zod@4.1.12):
+    optionalDependencies:
+      zod: 4.1.12
 
   pg-cloudflare@1.2.7:
     optional: true

@@ -16,6 +16,10 @@ const guestCommands = [
     desc: "signup with your email",
   },
   {
+    id: "/llm/hello",
+    desc: "call the OpenAI hello route",
+  },
+  {
     id: "/exit",
     desc: "exit Maid3",
   },
@@ -32,6 +36,10 @@ const authedCommands = [
   {
     id: "/story",
     desc: "browse your stories",
+  },
+  {
+    id: "/llm/hello",
+    desc: "call the OpenAI hello route",
   },
   {
     id: "/update/name",
@@ -113,6 +121,7 @@ export default function Commander() {
       case "/story":
       case "/update/name":
       case "/update/password":
+      case "/llm/hello":
         addViews(
           [
             { kind: "text", option: { label: q.item.id, dimColor: true } },

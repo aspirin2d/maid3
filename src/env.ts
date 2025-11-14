@@ -60,6 +60,11 @@ export const env = {
   DEFAULT_ADMIN_PASSWORD: process.env.DEFAULT_ADMIN_PASSWORD,
   DEFAULT_ADMIN_NAME: process.env.DEFAULT_ADMIN_NAME,
 
+  // OpenAI
+  OPENAI_API_KEY: getRequiredEnv("OPENAI_API_KEY"),
+  OPENAI_RESPONSE_MODEL: process.env.OPENAI_RESPONSE_MODEL,
+  OPENAI_EMBEDDING_MODEL: process.env.OPENAI_EMBEDDING_MODEL,
+
   // Feature flags
   isProduction: getNodeEnv() === "production",
   isDevelopment: getNodeEnv() === "development",

@@ -4,9 +4,10 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { initializeDefaultAdmin, registerAdminRoutes } from "./admin.js";
+import type { AppContext, AppEnv } from "./app-env.js";
 import { auth } from "./auth.js";
-import type { AppEnv, AppContext } from "./app-env.js";
 import { env } from "./env.js";
+import { registerOpenAiRoutes } from "./openai.js";
 import { registerStoryRoutes } from "./story.js";
 
 const app = new Hono<AppEnv>();
@@ -78,8 +79,7 @@ const handleUserApiError = (
     status >= 400 && status <= 599
       ? (status as ContentfulStatusCode)
       : (500 as ContentfulStatusCode);
-  const message =
-    error instanceof Error ? error.message : fallbackMessage;
+  const message = error instanceof Error ? error.message : fallbackMessage;
   return c.json({ error: message }, normalizedStatus);
 };
 
@@ -101,6 +101,7 @@ app.use("/api/*", async (c, next) => {
 
 registerStoryRoutes(app, { handleUserApiError });
 registerAdminRoutes(app);
+registerOpenAiRoutes(app);
 
 await initializeDefaultAdmin();
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
