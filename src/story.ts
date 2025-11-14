@@ -24,10 +24,12 @@ const createStorySchema = z.object({
   handler: z.string().trim().min(1).max(100).optional(),
 });
 
-const updateStorySchema = createStorySchema.partial().refine(
-  (value) => Object.values(value).some((v) => typeof v !== "undefined"),
-  { message: "Provide at least one field to update" },
-);
+const updateStorySchema = createStorySchema
+  .partial()
+  .refine(
+    (value) => Object.values(value).some((v) => typeof v !== "undefined"),
+    { message: "Provide at least one field to update" },
+  );
 
 const createMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"] as const),
@@ -44,7 +46,10 @@ type JsonParseResult<T> =
   | { success: true; data: T }
   | { success: false; response: Response };
 
-const parseJsonBody = async <T>(c: AppContext, schema: z.ZodSchema<T>): Promise<JsonParseResult<T>> => {
+const parseJsonBody = async <T>(
+  c: AppContext,
+  schema: z.ZodSchema<T>,
+): Promise<JsonParseResult<T>> => {
   let body: unknown;
   try {
     body = await c.req.json();
@@ -231,7 +236,8 @@ export const registerStoryRoutes = (app: Hono<AppEnv>, deps: StoryDeps) => {
 
     try {
       const updateData: Partial<typeof story.$inferInsert> = {};
-      if (typeof body.data.name !== "undefined") updateData.name = body.data.name;
+      if (typeof body.data.name !== "undefined")
+        updateData.name = body.data.name;
       if (typeof body.data.embeddingProvider !== "undefined") {
         updateData.embeddingProvider = body.data.embeddingProvider;
       }
@@ -282,102 +288,6 @@ export const registerStoryRoutes = (app: Hono<AppEnv>, deps: StoryDeps) => {
       return c.json({ status: "deleted", storyId });
     } catch (error) {
       return deps.handleUserApiError(c, error, "Failed to delete story");
-    }
-  });
-
-  app.get("/api/s/:id/messages", async (c) => {
-    const auth = requireUser(c);
-    if (!auth.success) return auth.response;
-
-    const params = storyParamsSchema.safeParse({ id: c.req.param("id") });
-    if (!params.success) {
-      return c.json({ error: "Invalid story id" }, 400);
-    }
-
-    const storyId = params.data.id;
-
-    try {
-      const storyRecord = await fetchUserStory(storyId, auth.user.id);
-      if (!storyRecord) {
-        return c.json({ error: "Story not found" }, 404);
-      }
-
-      const messages = await fetchStoryMessages(storyId);
-      return c.json({ storyId: storyRecord.id, messages });
-    } catch (error) {
-      return deps.handleUserApiError(c, error, "Failed to list messages");
-    }
-  });
-
-  app.post("/api/s/:id/messages", async (c) => {
-    const auth = requireUser(c);
-    if (!auth.success) return auth.response;
-
-    const params = storyParamsSchema.safeParse({ id: c.req.param("id") });
-    if (!params.success) {
-      return c.json({ error: "Invalid story id" }, 400);
-    }
-
-    const body = await parseJsonBody(c, createMessageSchema);
-    if (!body.success) return body.response;
-
-    const storyId = params.data.id;
-
-    try {
-      const storyRecord = await fetchUserStory(storyId, auth.user.id);
-      if (!storyRecord) {
-        return c.json({ error: "Story not found" }, 404);
-      }
-
-      const created = await db
-        .insert(message)
-        .values({
-          storyId,
-          role: body.data.role,
-          content: body.data.content,
-          extracted: body.data.extracted ?? false,
-        })
-        .returning();
-
-      return c.json({ message: created[0] }, 201);
-    } catch (error) {
-      return deps.handleUserApiError(c, error, "Failed to create message");
-    }
-  });
-
-  app.delete("/api/s/:id/messages/:messageId", async (c) => {
-    const auth = requireUser(c);
-    if (!auth.success) return auth.response;
-
-    const params = messageParamsSchema.safeParse({
-      id: c.req.param("id"),
-      messageId: c.req.param("messageId"),
-    });
-
-    if (!params.success) {
-      return c.json({ error: "Invalid parameters" }, 400);
-    }
-
-    const { id: storyId, messageId } = params.data;
-
-    try {
-      const storyRecord = await fetchUserStory(storyId, auth.user.id);
-      if (!storyRecord) {
-        return c.json({ error: "Story not found" }, 404);
-      }
-
-      const deleted = await db
-        .delete(message)
-        .where(and(eq(message.id, messageId), eq(message.storyId, storyId)))
-        .returning({ id: message.id });
-
-      if (!deleted.length) {
-        return c.json({ error: "Message not found" }, 404);
-      }
-
-      return c.json({ status: "deleted", messageId });
-    } catch (error) {
-      return deps.handleUserApiError(c, error, "Failed to delete message");
     }
   });
 };
