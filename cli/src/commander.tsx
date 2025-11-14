@@ -51,7 +51,7 @@ export default function Commander() {
     if (!session) return guestCommands;
     const commands = [...authedCommands];
     if (session.isAdmin) {
-      commands.push(...adminCommands);
+      commands.unshift(...adminCommands);
     }
     return commands;
   }, [session]);
@@ -85,7 +85,7 @@ export default function Commander() {
         break;
       case "/clear":
         process.stdout.write("\x1b[2J\x1b[0;0H");
-        addViews([{ kind: "commander" }], -1);
+        setTimeout(() => addViews([{ kind: "commander" }], -1), 100);
         break;
       case "/exit":
         addViews([
