@@ -2,13 +2,7 @@ import { Box, Text, useInput } from "ink";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createApiClient, type HelloResponse } from "./api.js";
 import { useAddViews, useSession } from "./context.js";
-import {
-  ErrorText,
-  FieldLabel,
-  KeyboardHelp,
-  LoadingText,
-  WarningText,
-} from "./ui.js";
+import { ErrorText, KeyboardHelp, LoadingText, WarningText } from "./ui.js";
 
 export function LlmHello({ url }: { url: string }) {
   const [session] = useSession();
@@ -18,7 +12,7 @@ export function LlmHello({ url }: { url: string }) {
   const [result, setResult] = useState<HelloResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [refreshTick, setRefreshTick] = useState(0);
+  const [hasCompleted, setHasCompleted] = useState(false);
 
   const exitToCommander = useCallback(
     (label: string) => {
@@ -43,22 +37,22 @@ export function LlmHello({ url }: { url: string }) {
       setIsLoading(true);
       setError(null);
       setResult(null);
+      setHasCompleted(false);
 
       try {
-        const response = await apiClient.getHelloMessage(
-          session?.bearerToken,
-        );
+        const response = await apiClient.getHelloMessage(session?.bearerToken);
         if (cancelled) return;
         setResult(response);
       } catch (err) {
         if (cancelled) return;
         setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to fetch hello response",
+          err instanceof Error ? err.message : "Failed to fetch hello response",
         );
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setHasCompleted(true);
+        }
       }
     };
 
@@ -67,23 +61,11 @@ export function LlmHello({ url }: { url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [apiClient, session?.bearerToken, refreshTick]);
+  }, [apiClient, session?.bearerToken]);
 
-  const refresh = useCallback(() => {
-    setRefreshTick((prev) => prev + 1);
-  }, []);
-
-  useInput((input, key) => {
-    if (key.escape) {
+  useInput((_input) => {
+    if (!isLoading && hasCompleted) {
       exitToCommander("Closed /llm/hello");
-    }
-
-    if (key.return && !isLoading) {
-      exitToCommander("Back to commands");
-    }
-
-    if (!isLoading && input?.toLowerCase() === "r") {
-      refresh();
     }
   });
 
@@ -92,7 +74,7 @@ export function LlmHello({ url }: { url: string }) {
   }
 
   return (
-    <Box flexDirection="column" rowGap={1}>
+    <Box flexDirection="column" marginY={1}>
       {!session && (
         <WarningText>
           Not authenticated. Request sent anonymously without bearer token.
@@ -103,26 +85,24 @@ export function LlmHello({ url }: { url: string }) {
         <ErrorText>{error}</ErrorText>
       ) : (
         result && (
-          <Box flexDirection="column" rowGap={1}>
-            <Box columnGap={1}>
-              <FieldLabel>Greeting</FieldLabel>
-              <Text>{result.greeting}</Text>
+          <Box flexDirection="column">
+            <Box>
+              <Box width={12}>
+                <Text dimColor>Greeting</Text>
+              </Box>
+              <Text>{result.greeting.trim()}</Text>
             </Box>
-            <Box columnGap={1}>
-              <FieldLabel>Detail</FieldLabel>
-              <Text>{result.detail}</Text>
+            <Box>
+              <Box width={12}>
+                <Text dimColor>Detail</Text>
+              </Box>
+              <Text>{result.detail.trim()}</Text>
             </Box>
           </Box>
         )
       )}
 
-      <KeyboardHelp
-        hints={[
-          { key: "Enter", action: "Close" },
-          { key: "Esc", action: "Cancel" },
-          { key: "r", action: "Refresh" },
-        ]}
-      />
+      <KeyboardHelp hints={[{ key: "Any key", action: "to continue..." }]} />
     </Box>
   );
 }

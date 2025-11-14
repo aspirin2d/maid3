@@ -24,13 +24,21 @@ const helloResponseSchema = z.object({
   detail: z.string().min(1),
 });
 
-const HELLO_PROMPT =
-  "Return JSON with `greeting` and `detail` fields that warmly welcome a Maid3 user.";
+const createHelloPrompt = (name: string) =>
+  `Return JSON with \\"greeting\\" and \\"detail\\" fields that warmly welcome Maid3 user ${name}. Keep it short and reference them by name.`;
 
 export const registerOpenAiRoutes = (app: Hono<AppEnv>) => {
   app.get("/api/openai/hello", async (c) => {
     try {
-      const hello = await StructureResponse(HELLO_PROMPT, helloResponseSchema);
+      const user = c.get("user");
+      const displayName =
+        user?.name?.trim() && user.name.trim().length > 0
+          ? user.name.trim()
+          : user?.email ?? "friend";
+      const hello = await StructureResponse(
+        createHelloPrompt(displayName),
+        helloResponseSchema,
+      );
       return c.json(hello);
     } catch (error) {
       console.error("Failed to generate OpenAI hello response", error);
