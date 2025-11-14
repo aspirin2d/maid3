@@ -1,8 +1,9 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword } from "./validation.js";
+import { createApiClient } from "./api.js";
 
 export default function Login({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -14,6 +15,7 @@ export default function Login({ url }: { url: string }) {
 
   const [, setSession] = useSession();
   const addViews = useAddViews();
+  const apiClient = useMemo(() => createApiClient(url), [url]);
 
   useInput((_input, key) => {
     if (key.tab && !key.shift && step === "email") {
@@ -66,96 +68,43 @@ export default function Login({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const { token, user } = await apiClient.login({ email, password });
+      const sessionData = await apiClient.getSession(token);
+      const sessionUser = sessionData?.user ?? user;
 
-      try {
-        const res = await fetch(`${url}/auth/sign-in/email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+      setSession({
+        email: sessionUser.email,
+        bearerToken: token,
+        isAdmin: sessionUser.role === "admin",
+      });
 
-        if (!res.ok) {
-          // Generic error to avoid information leakage
-          throw new Error("Invalid email or password");
-        }
-        const json = await res.json();
-        const token = res.headers.get("set-auth-token");
-        if (!token) {
-          throw new Error("Missing auth token from server response");
-        }
+      const loginLabel = `Login as ${sessionUser.email}${
+        sessionUser.role === "admin" ? " [admin]" : ""
+      }`;
 
-        const sessionController = new AbortController();
-        const sessionTimeout = setTimeout(
-          () => sessionController.abort(),
-          10000,
-        );
-
-        const sessionRes = await fetch(`${url}/auth/get-session`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: sessionController.signal,
-        });
-
-        clearTimeout(sessionTimeout);
-
-        if (!sessionRes.ok) {
-          throw new Error("Failed to verify session");
-        }
-
-        const sessionJson = await sessionRes.json();
-        const sessionUser = sessionJson?.user ?? json.user;
-
-        setSession({
-          email: sessionUser.email,
-          bearerToken: token,
-          isAdmin: sessionUser.role === "admin",
-        });
-
-        const loginLabel = `Login as ${sessionUser.email}${
-          sessionUser.role === "admin" ? " [admin]" : ""
-        }`;
-
-        addViews(
-          [
-            {
-              kind: "text",
-              option: {
-                label: loginLabel,
-                dimColor: true,
-              },
+      addViews(
+        [
+          {
+            kind: "text",
+            option: {
+              label: loginLabel,
+              dimColor: true,
             },
-            { kind: "commander" },
-          ],
-          -1,
-        );
-      } catch (e) {
-        clearTimeout(timeout);
-        throw e;
-      }
+          },
+          { kind: "commander" },
+        ],
+        -1,
+      );
     } catch (e) {
       if (e instanceof Error) {
-        if (e.name === "AbortError") {
-          setError("Request timeout - server not responding");
-        } else if (e instanceof TypeError) {
-          setError("Network error: Cannot connect to server");
-        } else {
-          setError(e.message);
-        }
+        setError(e.message);
       } else {
         setError("Unknown error");
       }
     } finally {
       setLoading(false);
     }
-  }, [url, email, password, setSession, addViews]);
+  }, [apiClient, email, password, setSession, addViews]);
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;

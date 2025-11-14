@@ -3,32 +3,11 @@ import TextInput from "ink-text-input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { MIN_PASSWORD_LENGTH, validateEmail, validateName } from "./validation.js";
-
-type AdminUser = {
-  id: string;
-  email: string;
-  name?: string | null;
-  role?: string | null;
-  createdAt?: string | null;
-  status?: string | null;
-};
-
-type AdminUsersResponse = {
-  users: AdminUser[];
-  total: number;
-  meta: {
-    page: number;
-    pageSize: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-};
-
-type ResetPasswordResponse = {
-  userId: string;
-  password: string;
-};
+import {
+  createApiClient,
+  type AdminUser,
+  type AdminUsersResponse,
+} from "./api.js";
 
 type ViewMode = "list" | "confirm-delete" | "confirm-reset" | "edit";
 type EditStep = "name" | "email" | "role" | "password";
@@ -61,6 +40,7 @@ function cycleIndex(current: number, direction: number, maxIndex: number): numbe
 export function AdminUsers({ url }: { url: string }) {
   const [session] = useSession();
   const addViews = useAddViews();
+  const apiClient = useMemo(() => createApiClient(url), [url]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -118,44 +98,26 @@ export function AdminUsers({ url }: { url: string }) {
       setLoadError(null);
 
       try {
-        const params = new URLSearchParams({
-          limit: PAGE_SIZE.toString(),
-          offset: ((currentPage - 1) * PAGE_SIZE).toString(),
+        const response = await apiClient.listUsers(session.bearerToken, {
+          limit: PAGE_SIZE,
+          offset: (currentPage - 1) * PAGE_SIZE,
         });
 
-        const response = await fetch(`${url}/admin/u?${params.toString()}`, {
-          headers: {
-            Authorization: `Bearer ${session.bearerToken}`,
-            Accept: "application/json",
-          },
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          let message = `Failed to load users (HTTP ${response.status})`;
-          try {
-            const body = await response.json();
-            if (body.error) message = body.error;
-          } catch {}
-          throw new Error(message);
-        }
-
-        const json = (await response.json()) as Partial<AdminUsersResponse>;
         if (cancelled) return;
 
-        const normalizedUsers = Array.isArray(json.users)
-          ? (json.users as AdminUser[])
+        const normalizedUsers = Array.isArray(response.users)
+          ? response.users
           : [];
 
         const total =
-          typeof json.total === "number" ? json.total : normalizedUsers.length;
+          typeof response.total === "number" ? response.total : normalizedUsers.length;
 
         const normalizedMeta = {
-          page: json.meta?.page ?? currentPage,
-          pageSize: json.meta?.pageSize ?? PAGE_SIZE,
-          totalPages: json.meta?.totalPages ?? Math.ceil(total / PAGE_SIZE),
-          hasNext: json.meta?.hasNext ?? currentPage * PAGE_SIZE < total,
-          hasPrev: json.meta?.hasPrev ?? currentPage > 1,
+          page: response.meta?.page ?? currentPage,
+          pageSize: response.meta?.pageSize ?? PAGE_SIZE,
+          totalPages: response.meta?.totalPages ?? Math.ceil(total / PAGE_SIZE),
+          hasNext: response.meta?.hasNext ?? currentPage * PAGE_SIZE < total,
+          hasPrev: response.meta?.hasPrev ?? currentPage > 1,
         };
 
         setUsersData({
@@ -183,7 +145,7 @@ export function AdminUsers({ url }: { url: string }) {
       cancelled = true;
       controller.abort();
     };
-  }, [session?.bearerToken, session?.isAdmin, currentPage, url, refreshTrigger]);
+  }, [session?.bearerToken, session?.isAdmin, currentPage, apiClient, refreshTrigger]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -211,22 +173,7 @@ export function AdminUsers({ url }: { url: string }) {
     clearOperationState();
 
     try {
-      const response = await fetch(`${url}/admin/u/${selectedUser.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.bearerToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        let message = `Failed to delete user (HTTP ${response.status})`;
-        try {
-          const body = await response.json();
-          if (body.error) message = body.error;
-        } catch {}
-        throw new Error(message);
-      }
-
+      await apiClient.deleteUser(session.bearerToken, selectedUser.id);
       setViewMode("list");
       triggerRefresh();
     } catch (err) {
@@ -236,7 +183,7 @@ export function AdminUsers({ url }: { url: string }) {
     } finally {
       setIsOperationLoading(false);
     }
-  }, [selectedUser, session?.bearerToken, url, clearOperationState, triggerRefresh]);
+  }, [selectedUser, session?.bearerToken, apiClient, clearOperationState, triggerRefresh]);
 
   const validateEditForm = useCallback((): string | null => {
     const nameError = validateName(editFormData.name);
@@ -272,28 +219,12 @@ export function AdminUsers({ url }: { url: string }) {
 
     try {
       const trimmedPassword = editFormData.password.trim();
-      const response = await fetch(`${url}/admin/u/${selectedUser.id}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${session.bearerToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: editFormData.name,
-          email: editFormData.email,
-          role: editFormData.role,
-          ...(trimmedPassword ? { password: trimmedPassword } : {}),
-        }),
+      await apiClient.updateUser(session.bearerToken, selectedUser.id, {
+        name: editFormData.name,
+        email: editFormData.email,
+        role: editFormData.role,
+        ...(trimmedPassword ? { password: trimmedPassword } : {}),
       });
-
-      if (!response.ok) {
-        let message = `Failed to update user (HTTP ${response.status})`;
-        try {
-          const body = await response.json();
-          if (body.error) message = body.error;
-        } catch {}
-        throw new Error(message);
-      }
 
       setViewMode("list");
       setEditFormData({ name: "", email: "", role: "", password: "" });
@@ -309,7 +240,7 @@ export function AdminUsers({ url }: { url: string }) {
     selectedUser,
     editFormData,
     session?.bearerToken,
-    url,
+    apiClient,
     validateEditForm,
     clearOperationState,
     triggerRefresh,
@@ -322,30 +253,13 @@ export function AdminUsers({ url }: { url: string }) {
     clearOperationState();
 
     try {
-      const response = await fetch(`${url}/admin/u/${selectedUser.id}/pwd`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.bearerToken}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        let message = `Failed to reset password (HTTP ${response.status})`;
-        try {
-          const body = await response.json();
-          if (body.error) message = body.error;
-        } catch {}
-        throw new Error(message);
-      }
-
-      const body = (await response.json()) as Partial<ResetPasswordResponse>;
-      if (!body?.password) {
-        throw new Error("Password reset succeeded but password missing");
-      }
+      const response = await apiClient.resetUserPassword(
+        session.bearerToken,
+        selectedUser.id,
+      );
 
       setOperationMessage(
-        `Temporary password for ${selectedUser.email}: ${body.password}`,
+        `Temporary password for ${selectedUser.email}: ${response.password}`,
       );
       setViewMode("list");
     } catch (err) {
@@ -355,7 +269,7 @@ export function AdminUsers({ url }: { url: string }) {
     } finally {
       setIsOperationLoading(false);
     }
-  }, [selectedUser, session?.bearerToken, url, clearOperationState]);
+  }, [selectedUser, session?.bearerToken, apiClient, clearOperationState]);
 
   const handleNavigateUsers = useCallback(
     (direction: number) => {

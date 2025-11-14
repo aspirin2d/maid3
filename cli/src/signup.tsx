@@ -1,8 +1,9 @@
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 import { validateEmail, validatePassword, validateName } from "./validation.js";
+import { createApiClient } from "./api.js";
 
 export default function Signup({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -15,6 +16,7 @@ export default function Signup({ url }: { url: string }) {
 
   const [, setSession] = useSession();
   const addViews = useAddViews();
+  const apiClient = useMemo(() => createApiClient(url), [url]);
 
   useInput((_input, key) => {
     if (key.tab && !key.shift) {
@@ -87,72 +89,40 @@ export default function Signup({ url }: { url: string }) {
       setLoading(true);
       setError("");
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const { token, user } = await apiClient.signup({
+        name,
+        email,
+        password,
+      });
 
-      try {
-        const res = await fetch(`${url}/auth/sign-up/email`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name,
-            email,
-            password,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+      setSession({
+        email: user.email,
+        bearerToken: token ?? "",
+        isAdmin: user.role === "admin",
+      });
 
-        if (!res.ok) {
-          let message = "Failed to signup";
-          try {
-            const json = await res.json();
-            if (json.message) message = json.message;
-          } catch {}
-          throw new Error(message);
-        }
-        const json = await res.json();
-        const token = res.headers.get("set-auth-token");
-
-        setSession({
-          email: json.user.email,
-          bearerToken: token ?? "",
-          isAdmin: json.user.role === "admin",
-        });
-        addViews(
-          [
-            {
-              kind: "text",
-              option: {
-                label: "Signed up as " + json.user.email,
-              },
+      addViews(
+        [
+          {
+            kind: "text",
+            option: {
+              label: "Signed up as " + user.email,
             },
-            { kind: "commander" },
-          ],
-          1,
-        );
-      } catch (e) {
-        clearTimeout(timeout);
-        throw e;
-      }
+          },
+          { kind: "commander" },
+        ],
+        1,
+      );
     } catch (e) {
       if (e instanceof Error) {
-        if (e.name === "AbortError") {
-          setError("Request timeout - server not responding");
-        } else if (e instanceof TypeError) {
-          setError("Network error: Cannot connect to server");
-        } else {
-          setError(e.message);
-        }
+        setError(e.message);
       } else {
         setError("Unknown error");
       }
     } finally {
       setLoading(false);
     }
-  }, [url, name, email, password, setSession, addViews]);
+  }, [apiClient, name, email, password, setSession, addViews]);
 
   if (loading) {
     return <Text color="gray">Loading...</Text>;
