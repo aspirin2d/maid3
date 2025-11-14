@@ -143,25 +143,14 @@ export type ResetPasswordResponse = {
   password: string;
 };
 
-export type UpdateNameRequest = {
-  name: string;
+export type SelfUpdateRequest = {
+  name?: string;
+  password?: string;
 };
 
-export type UpdateNameResponse = {
+export type SelfUpdateResponse = {
   status: string;
-  user: SessionResponse["user"];
-};
-
-export type UpdatePasswordRequest = {
-  currentPassword: string;
-  newPassword: string;
-  revokeOtherSessions?: boolean;
-};
-
-export type UpdatePasswordResponse = {
-  status: string;
-  token: string | null;
-  user: SessionResponse["user"];
+  user?: SessionResponse["user"];
 };
 
 export class ApiClient {
@@ -294,12 +283,12 @@ export class ApiClient {
     return data;
   }
 
-  async updateName(
+  async updateSelf(
     token: string,
-    request: UpdateNameRequest,
-  ): Promise<UpdateNameResponse> {
-    const { data } = await fetchWithTimeout<UpdateNameResponse>(
-      `${this.baseUrl}/update/name`,
+    request: SelfUpdateRequest,
+  ): Promise<{ response: SelfUpdateResponse; token: string | null }> {
+    const { data, headers } = await fetchWithTimeout<SelfUpdateResponse>(
+      `${this.baseUrl}/auth/update-user`,
       {
         method: "POST",
         headers: {
@@ -310,28 +299,9 @@ export class ApiClient {
       },
     );
 
-    return data;
-  }
+    const updatedToken = headers.get("set-auth-token");
 
-  async updatePassword(
-    token: string,
-    request: UpdatePasswordRequest,
-  ): Promise<UpdatePasswordResponse> {
-    const { data, headers } = await fetchWithTimeout<UpdatePasswordResponse>(
-      `${this.baseUrl}/update/password`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-      },
-    );
-
-    const updatedToken = data.token ?? headers.get("set-auth-token") ?? null;
-
-    return { ...data, token: updatedToken };
+    return { response: data, token: updatedToken };
   }
 }
 

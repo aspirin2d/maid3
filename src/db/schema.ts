@@ -1,4 +1,3 @@
-import type { InferSelectModel } from "drizzle-orm";
 import {
   boolean,
   index,

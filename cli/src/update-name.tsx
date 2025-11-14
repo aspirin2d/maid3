@@ -94,7 +94,7 @@ export default function UpdateName({ url }: { url: string }) {
     setError("");
 
     try {
-      const response = await apiClient.updateName(session.bearerToken, {
+      const { response } = await apiClient.updateSelf(session.bearerToken, {
         name: trimmed,
       });
 
@@ -103,7 +103,7 @@ export default function UpdateName({ url }: { url: string }) {
           {
             kind: "text",
             option: {
-              label: `Updated name to ${response.user.name ?? trimmed}`,
+              label: `Updated name to ${response.user?.name ?? trimmed}`,
               color: "green",
             },
           },

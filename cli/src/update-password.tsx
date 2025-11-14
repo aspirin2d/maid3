@@ -106,22 +106,22 @@ export default function UpdatePassword({ url }: { url: string }) {
     setError("");
 
     try {
-      const response = await apiClient.updatePassword(session.bearerToken, {
-        currentPassword,
-        newPassword,
-        revokeOtherSessions: true,
-      });
+      const { token: maybeNewToken } = await apiClient.updateSelf(
+        session.bearerToken,
+        {
+          password: newPassword,
+        },
+      );
 
-      setSession((prev) => {
-        if (!prev) return prev;
-        const nextToken = response.token ?? prev.bearerToken;
-        return {
-          ...prev,
-          bearerToken: nextToken,
-          email: response.user.email ?? prev.email,
-          isAdmin: response.user.role === "admin",
-        };
-      });
+      if (maybeNewToken) {
+        setSession((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            bearerToken: maybeNewToken,
+          };
+        });
+      }
 
       addViews(
         [
@@ -198,7 +198,7 @@ export default function UpdatePassword({ url }: { url: string }) {
           onSubmit={submit}
         />
       </FieldRow>
-      <HelpText>Other active sessions will be revoked after a successful update.</HelpText>
+      <HelpText>Your current password is required to confirm the change.</HelpText>
       <KeyboardHelp hints={hints} />
       {error && <ErrorText>{error}</ErrorText>}
     </FormContainer>
