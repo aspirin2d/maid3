@@ -2,7 +2,13 @@ import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
-import { createApiClient, type StoryListResponse, type Story } from "./api.js";
+import {
+  createApiClient,
+  type CreateStoryRequest,
+  type Story,
+  type StoryListResponse,
+  type UpdateStoryRequest,
+} from "./api.js";
 import {
   ErrorText,
   FieldRow,
@@ -12,8 +18,22 @@ import {
   WarningText,
 } from "./ui.js";
 
-type ViewMode = "list" | "confirm-delete" | "create";
-type CreateStep = "name" | "embeddingProvider" | "llmProvider" | "handler";
+type ViewMode = "list" | "confirm-delete" | "create" | "edit";
+type StoryFormStep = "name" | "embeddingProvider" | "llmProvider" | "handler";
+
+type StoryFormData = {
+  name: string;
+  embeddingProvider: string;
+  llmProvider: string;
+  handler: string;
+};
+
+const createEmptyStoryForm = (): StoryFormData => ({
+  name: "",
+  embeddingProvider: "",
+  llmProvider: "",
+  handler: "",
+});
 
 const PAGE_SIZE = 10;
 const EMBEDDING_PROVIDERS = ["openai", "ollama", "dashscope"] as const;
@@ -24,7 +44,11 @@ function clampIndex(index: number, length: number): number {
   return Math.max(0, Math.min(index, length - 1));
 }
 
-function cycleIndex(current: number, direction: number, maxIndex: number): number {
+function cycleIndex(
+  current: number,
+  direction: number,
+  maxIndex: number,
+): number {
   const next = current + direction;
   if (next > maxIndex) return 0;
   if (next < 0) return maxIndex;
@@ -38,18 +62,23 @@ export function Stories({ url }: { url: string }) {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [storiesData, setStoriesData] = useState<StoryListResponse | null>(null);
+  const [storiesData, setStoriesData] = useState<StoryListResponse | null>(
+    null,
+  );
   const [isLoadingStories, setIsLoadingStories] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [createStep, setCreateStep] = useState<CreateStep>("name");
-  const [createFormData, setCreateFormData] = useState({
-    name: "",
-    embeddingProvider: "",
-    llmProvider: "",
-    handler: "",
-  });
+  const [formStep, setFormStep] = useState<StoryFormStep>("name");
+  const [storyFormData, setStoryFormData] = useState<StoryFormData>(() =>
+    createEmptyStoryForm(),
+  );
+  const [storyBeingEdited, setStoryBeingEdited] = useState<Story | null>(null);
+
+  const resetFormState = useCallback(() => {
+    setStoryFormData(createEmptyStoryForm());
+    setFormStep("name");
+  }, []);
 
   const [operationError, setOperationError] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
@@ -105,11 +134,12 @@ export function Stories({ url }: { url: string }) {
           : [];
 
         const total =
-          typeof response.total === "number" ? response.total : normalizedStories.length;
+          typeof response.total === "number"
+            ? response.total
+            : normalizedStories.length;
 
-        const totalPages = Math.ceil(total / PAGE_SIZE);
-        const hasNext = response.hasNext ?? offset + normalizedStories.length < total;
-        const hasPrev = currentPage > 1;
+        const hasNext =
+          response.hasNext ?? offset + normalizedStories.length < total;
 
         setStoriesData({
           stories: normalizedStories,
@@ -146,7 +176,9 @@ export function Stories({ url }: { url: string }) {
 
   const selectedStory = useMemo(() => {
     if (!storiesData?.stories.length) return null;
-    return storiesData.stories[clampIndex(selectedIndex, storiesData.stories.length)];
+    return storiesData.stories[
+      clampIndex(selectedIndex, storiesData.stories.length)
+    ];
   }, [storiesData, selectedIndex]);
 
   const deleteStory = useCallback(async () => {
@@ -166,42 +198,52 @@ export function Stories({ url }: { url: string }) {
     } finally {
       setIsOperationLoading(false);
     }
-  }, [selectedStory, session?.bearerToken, apiClient, clearOperationState, triggerRefresh]);
+  }, [
+    selectedStory,
+    session?.bearerToken,
+    apiClient,
+    clearOperationState,
+    triggerRefresh,
+  ]);
 
-  const validateCreateForm = useCallback((): string | null => {
-    if (!createFormData.name.trim()) {
+  const validateStoryForm = useCallback((): string | null => {
+    if (!storyFormData.name.trim()) {
       return "Story name is required";
     }
 
-    if (createFormData.name.length > 200) {
+    if (storyFormData.name.length > 200) {
       return "Story name must be 200 characters or less";
     }
 
-    if (createFormData.embeddingProvider) {
-      const validEmbedding = EMBEDDING_PROVIDERS.some(p => p === createFormData.embeddingProvider);
+    if (storyFormData.embeddingProvider) {
+      const validEmbedding = EMBEDDING_PROVIDERS.some(
+        (p) => p === storyFormData.embeddingProvider,
+      );
       if (!validEmbedding) {
         return `Embedding provider must be one of: ${EMBEDDING_PROVIDERS.join(", ")} or leave blank`;
       }
     }
 
-    if (createFormData.llmProvider) {
-      const validLlm = LLM_PROVIDERS.some(p => p === createFormData.llmProvider);
+    if (storyFormData.llmProvider) {
+      const validLlm = LLM_PROVIDERS.some(
+        (p) => p === storyFormData.llmProvider,
+      );
       if (!validLlm) {
         return `LLM provider must be one of: ${LLM_PROVIDERS.join(", ")} or leave blank`;
       }
     }
 
-    if (createFormData.handler && createFormData.handler.length > 100) {
+    if (storyFormData.handler && storyFormData.handler.length > 100) {
       return "Handler must be 100 characters or less";
     }
 
     return null;
-  }, [createFormData]);
+  }, [storyFormData]);
 
   const createStory = useCallback(async () => {
     if (!session?.bearerToken) return;
 
-    const validationError = validateCreateForm();
+    const validationError = validateStoryForm();
     if (validationError) {
       setOperationError(validationError);
       return;
@@ -211,26 +253,28 @@ export function Stories({ url }: { url: string }) {
     clearOperationState();
 
     try {
-      const payload: any = {
-        name: createFormData.name.trim(),
+      const payload: CreateStoryRequest = {
+        name: storyFormData.name.trim(),
       };
 
-      if (createFormData.embeddingProvider) {
-        payload.embeddingProvider = createFormData.embeddingProvider;
+      if (storyFormData.embeddingProvider) {
+        payload.embeddingProvider = storyFormData
+          .embeddingProvider as CreateStoryRequest["embeddingProvider"];
       }
 
-      if (createFormData.llmProvider) {
-        payload.llmProvider = createFormData.llmProvider;
+      if (storyFormData.llmProvider) {
+        payload.llmProvider = storyFormData.llmProvider as CreateStoryRequest["llmProvider"];
       }
 
-      if (createFormData.handler.trim()) {
-        payload.handler = createFormData.handler.trim();
+      if (storyFormData.handler.trim()) {
+        payload.handler = storyFormData.handler.trim();
       }
 
       await apiClient.createStory(session.bearerToken, payload);
 
       setViewMode("list");
-      setCreateFormData({ name: "", embeddingProvider: "", llmProvider: "", handler: "" });
+      resetFormState();
+      setOperationMessage("Story created");
       triggerRefresh();
     } catch (err) {
       setOperationError(
@@ -241,11 +285,84 @@ export function Stories({ url }: { url: string }) {
     }
   }, [
     session?.bearerToken,
-    createFormData,
+    storyFormData,
     apiClient,
-    validateCreateForm,
+    validateStoryForm,
     clearOperationState,
+    resetFormState,
     triggerRefresh,
+  ]);
+
+  const updateStory = useCallback(async () => {
+    if (!session?.bearerToken || !storyBeingEdited) return;
+
+    const validationError = validateStoryForm();
+    if (validationError) {
+      setOperationError(validationError);
+      return;
+    }
+
+    clearOperationState();
+
+    const payload: UpdateStoryRequest = {};
+    const trimmedName = storyFormData.name.trim();
+    if (trimmedName && trimmedName !== storyBeingEdited.name) {
+      payload.name = trimmedName;
+    }
+
+    const embedding = storyFormData.embeddingProvider;
+    if (
+      embedding &&
+      embedding !== (storyBeingEdited.embeddingProvider ?? "")
+    ) {
+      payload.embeddingProvider = embedding as UpdateStoryRequest["embeddingProvider"];
+    }
+
+    const llm = storyFormData.llmProvider;
+    if (llm && llm !== (storyBeingEdited.llmProvider ?? "")) {
+      payload.llmProvider = llm as UpdateStoryRequest["llmProvider"];
+    }
+
+    const handler = storyFormData.handler.trim();
+    if (handler && handler !== (storyBeingEdited.handler ?? "")) {
+      payload.handler = handler;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setOperationError("No changes to update");
+      return;
+    }
+
+    setIsOperationLoading(true);
+
+    try {
+      await apiClient.updateStory(
+        session.bearerToken,
+        storyBeingEdited.id,
+        payload,
+      );
+
+      setViewMode("list");
+      setStoryBeingEdited(null);
+      resetFormState();
+      setOperationMessage("Story updated");
+      triggerRefresh();
+    } catch (err) {
+      setOperationError(
+        err instanceof Error ? err.message : "Failed to update story",
+      );
+    } finally {
+      setIsOperationLoading(false);
+    }
+  }, [
+    session?.bearerToken,
+    storyBeingEdited,
+    storyFormData,
+    apiClient,
+    validateStoryForm,
+    resetFormState,
+    triggerRefresh,
+    clearOperationState,
   ]);
 
   const handleNavigateStories = useCallback(
@@ -269,73 +386,102 @@ export function Stories({ url }: { url: string }) {
     [currentPage, storiesData?.hasNext],
   );
 
-  const validateAndAdvanceCreateStep = useCallback(() => {
-    if (createStep === "name") {
-      if (!createFormData.name.trim()) {
+  const validateAndAdvanceFormStep = useCallback(() => {
+    if (formStep === "name") {
+      if (!storyFormData.name.trim()) {
         setOperationError("Story name is required");
-      } else if (createFormData.name.length > 200) {
+      } else if (storyFormData.name.length > 200) {
         setOperationError("Story name must be 200 characters or less");
       } else {
         setOperationError(null);
-        setCreateStep("embeddingProvider");
+        setFormStep("embeddingProvider");
       }
-    } else if (createStep === "embeddingProvider") {
-      if (createFormData.embeddingProvider) {
-        const validEmbedding = EMBEDDING_PROVIDERS.some(p => p === createFormData.embeddingProvider);
+    } else if (formStep === "embeddingProvider") {
+      if (storyFormData.embeddingProvider) {
+        const validEmbedding = EMBEDDING_PROVIDERS.some(
+          (p) => p === storyFormData.embeddingProvider,
+        );
         if (!validEmbedding) {
-          setOperationError(`Embedding provider must be one of: ${EMBEDDING_PROVIDERS.join(", ")} or leave blank`);
+          setOperationError(
+            `Embedding provider must be one of: ${EMBEDDING_PROVIDERS.join(", ")} or leave blank`,
+          );
           return;
         }
       }
       setOperationError(null);
-      setCreateStep("llmProvider");
-    } else if (createStep === "llmProvider") {
-      if (createFormData.llmProvider) {
-        const validLlm = LLM_PROVIDERS.some(p => p === createFormData.llmProvider);
+      setFormStep("llmProvider");
+    } else if (formStep === "llmProvider") {
+      if (storyFormData.llmProvider) {
+        const validLlm = LLM_PROVIDERS.some(
+          (p) => p === storyFormData.llmProvider,
+        );
         if (!validLlm) {
-          setOperationError(`LLM provider must be one of: ${LLM_PROVIDERS.join(", ")} or leave blank`);
+          setOperationError(
+            `LLM provider must be one of: ${LLM_PROVIDERS.join(", ")} or leave blank`,
+          );
           return;
         }
       }
       setOperationError(null);
-      setCreateStep("handler");
+      setFormStep("handler");
     }
-  }, [createStep, createFormData]);
+  }, [formStep, storyFormData]);
 
-  const handleCreateStepNavigation = useCallback(
+  const handleFormStepNavigation = useCallback(
     (direction: number) => {
       setOperationError(null);
-      const steps: CreateStep[] = ["name", "embeddingProvider", "llmProvider", "handler"];
-      const currentIndex = steps.indexOf(createStep);
+      const steps: StoryFormStep[] = [
+        "name",
+        "embeddingProvider",
+        "llmProvider",
+        "handler",
+      ];
+      const currentIndex = steps.indexOf(formStep);
       const nextIndex = currentIndex + direction;
 
       if (nextIndex >= 0 && nextIndex < steps.length) {
         const nextStep = steps[nextIndex];
         if (nextStep) {
-          setCreateStep(nextStep);
+          setFormStep(nextStep);
         }
       }
     },
-    [createStep],
+    [formStep],
   );
 
   const enterCreateMode = useCallback(() => {
-    setCreateFormData({
-      name: "",
-      embeddingProvider: "",
-      llmProvider: "",
-      handler: "",
-    });
-    setCreateStep("name");
+    resetFormState();
+    setStoryBeingEdited(null);
     setViewMode("create");
     clearOperationState();
-  }, [clearOperationState]);
+  }, [clearOperationState, resetFormState]);
 
   const cancelCreateMode = useCallback(() => {
     setViewMode("list");
-    setCreateFormData({ name: "", embeddingProvider: "", llmProvider: "", handler: "" });
+    resetFormState();
     clearOperationState();
-  }, [clearOperationState]);
+  }, [clearOperationState, resetFormState]);
+
+  const enterEditMode = useCallback(() => {
+    if (!selectedStory) return;
+    setStoryBeingEdited(selectedStory);
+    setStoryFormData({
+      name: selectedStory.name,
+      embeddingProvider: selectedStory.embeddingProvider ?? "",
+      llmProvider: selectedStory.llmProvider ?? "",
+      handler: selectedStory.handler ?? "",
+    });
+    setFormStep("name");
+    setViewMode("edit");
+    clearOperationState();
+  }, [selectedStory, clearOperationState]);
+
+  const cancelEditMode = useCallback(() => {
+    setViewMode("list");
+    setStoryBeingEdited(null);
+    resetFormState();
+    clearOperationState();
+  }, [clearOperationState, resetFormState]);
 
   useInput(
     (input, key) => {
@@ -349,19 +495,23 @@ export function Stories({ url }: { url: string }) {
         return;
       }
 
-      if (viewMode === "create") {
+      if (viewMode === "create" || viewMode === "edit") {
         if (key.escape) {
-          cancelCreateMode();
+          if (viewMode === "create") {
+            cancelCreateMode();
+          } else {
+            cancelEditMode();
+          }
           return;
         }
 
         if (key.tab && !key.shift) {
-          validateAndAdvanceCreateStep();
+          validateAndAdvanceFormStep();
           return;
         }
 
         if (key.shift && key.tab) {
-          handleCreateStepNavigation(-1);
+          handleFormStepNavigation(-1);
           return;
         }
 
@@ -383,6 +533,11 @@ export function Stories({ url }: { url: string }) {
 
       if (input === "c" || input === "C") {
         enterCreateMode();
+        return;
+      }
+
+      if ((input === "e" || input === "E") && selectedStory) {
+        enterEditMode();
         return;
       }
 
@@ -445,93 +600,128 @@ export function Stories({ url }: { url: string }) {
     );
   }
 
-  if (viewMode === "create") {
+  if (viewMode === "create" || viewMode === "edit") {
+    const isEditing = viewMode === "edit";
     return (
       <FormContainer>
-        <Text bold>Create New Story</Text>
+        <Text bold>
+          {isEditing ? "Edit Story" : "Create New Story"}
+          {isEditing && storyBeingEdited
+            ? ` — ${storyBeingEdited.name}`
+            : ""}
+        </Text>
 
         <FieldRow label="Name">
-          {createStep === "name" ? (
+          {formStep === "name" ? (
             <TextInput
-              value={createFormData.name}
+              value={storyFormData.name}
               onChange={(value) =>
-                setCreateFormData((prev) => ({ ...prev, name: value }))
+                setStoryFormData((prev) => ({ ...prev, name: value }))
               }
               placeholder="Enter story name"
               focus
-              onSubmit={validateAndAdvanceCreateStep}
+              onSubmit={validateAndAdvanceFormStep}
             />
           ) : (
-            <Text>{createFormData.name || " "}</Text>
+            <Text>{storyFormData.name || " "}</Text>
           )}
         </FieldRow>
 
-        {(createStep === "embeddingProvider" || createStep === "llmProvider" || createStep === "handler") && (
+        {(formStep === "embeddingProvider" ||
+          formStep === "llmProvider" ||
+          formStep === "handler") && (
           <FieldRow label="Embedding">
-            {createStep === "embeddingProvider" ? (
+            {formStep === "embeddingProvider" ? (
               <TextInput
-                value={createFormData.embeddingProvider}
+                value={storyFormData.embeddingProvider}
                 onChange={(value) =>
-                  setCreateFormData((prev) => ({ ...prev, embeddingProvider: value }))
-                }
-                placeholder={`${EMBEDDING_PROVIDERS.join("/")} or blank`}
+                setStoryFormData((prev) => ({
+                  ...prev,
+                  embeddingProvider: value,
+                }))
+              }
+              placeholder={
+                isEditing
+                  ? `${EMBEDDING_PROVIDERS.join("/")} or leave blank to keep current`
+                  : `${EMBEDDING_PROVIDERS.join("/")} or blank`
+              }
                 focus
-                onSubmit={validateAndAdvanceCreateStep}
+                onSubmit={validateAndAdvanceFormStep}
               />
             ) : (
-              <Text>{createFormData.embeddingProvider || "default"}</Text>
+              <Text>{storyFormData.embeddingProvider || "default"}</Text>
             )}
           </FieldRow>
         )}
 
-        {(createStep === "llmProvider" || createStep === "handler") && (
+        {(formStep === "llmProvider" || formStep === "handler") && (
           <FieldRow label="LLM">
-            {createStep === "llmProvider" ? (
+            {formStep === "llmProvider" ? (
               <TextInput
-                value={createFormData.llmProvider}
+                value={storyFormData.llmProvider}
                 onChange={(value) =>
-                  setCreateFormData((prev) => ({ ...prev, llmProvider: value }))
-                }
-                placeholder={`${LLM_PROVIDERS.join("/")} or blank`}
+                setStoryFormData((prev) => ({ ...prev, llmProvider: value }))
+              }
+              placeholder={
+                isEditing
+                  ? `${LLM_PROVIDERS.join("/")} or leave blank to keep current`
+                  : `${LLM_PROVIDERS.join("/")} or blank`
+              }
                 focus
-                onSubmit={validateAndAdvanceCreateStep}
+                onSubmit={validateAndAdvanceFormStep}
               />
             ) : (
-              <Text>{createFormData.llmProvider || "default"}</Text>
+              <Text>{storyFormData.llmProvider || "default"}</Text>
             )}
           </FieldRow>
         )}
 
-        {createStep === "handler" && (
+        {formStep === "handler" && (
           <FieldRow label="Handler">
             <TextInput
-              value={createFormData.handler}
+              value={storyFormData.handler}
               onChange={(value) =>
-                setCreateFormData((prev) => ({ ...prev, handler: value }))
+                setStoryFormData((prev) => ({ ...prev, handler: value }))
               }
-              placeholder="Leave blank for default"
+              placeholder={
+                isEditing ? "Leave blank to keep current" : "Leave blank for default"
+              }
               focus
-              onSubmit={createStory}
+              onSubmit={isEditing ? updateStory : createStory}
             />
           </FieldRow>
         )}
 
-        {createStep === "name" && (
-          <HelpText>Press Tab to continue, Esc to cancel</HelpText>
-        )}
-        {createStep === "embeddingProvider" && (
-          <HelpText>Press Tab to continue, Shift+Tab to go back, Esc to cancel</HelpText>
-        )}
-        {createStep === "llmProvider" && (
-          <HelpText>Press Tab to continue, Shift+Tab to go back, Esc to cancel</HelpText>
-        )}
-        {createStep === "handler" && (
+        {formStep === "name" && (
           <HelpText>
-            Press Enter to create (leave blank for default), Shift+Tab to go back, Esc to cancel
+            {isEditing
+              ? "Press Tab to continue, Esc to cancel editing"
+              : "Press Tab to continue, Esc to cancel"}
+          </HelpText>
+        )}
+        {formStep === "embeddingProvider" && (
+          <HelpText>
+            Press Tab to continue, Shift+Tab to go back, Esc to cancel
+          </HelpText>
+        )}
+        {formStep === "llmProvider" && (
+          <HelpText>
+            Press Tab to continue, Shift+Tab to go back, Esc to cancel
+          </HelpText>
+        )}
+        {formStep === "handler" && (
+          <HelpText>
+            {isEditing
+              ? "Press Enter to save (leave blank to keep current), Shift+Tab to go back, Esc to cancel"
+              : "Press Enter to create (leave blank for default), Shift+Tab to go back, Esc to cancel"}
           </HelpText>
         )}
 
-        {isOperationLoading && <LoadingText>Creating story...</LoadingText>}
+        {isOperationLoading && (
+          <LoadingText>
+            {isEditing ? "Updating story..." : "Creating story..."}
+          </LoadingText>
+        )}
         {operationError && <ErrorText>{operationError}</ErrorText>}
       </FormContainer>
     );
@@ -577,9 +767,12 @@ export function Stories({ url }: { url: string }) {
               <Text>{selectedStory.name}</Text>
               <Text dimColor>ID: {selectedStory.id}</Text>
               <Text dimColor>
-                LLM: {selectedStory.llmProvider} | Embedding: {selectedStory.embeddingProvider}
+                LLM: {selectedStory.llmProvider} | Embedding:{" "}
+                {selectedStory.embeddingProvider}
               </Text>
-              <Text dimColor>Handler: {selectedStory.handler || "default"}</Text>
+              <Text dimColor>
+                Handler: {selectedStory.handler || "default"}
+              </Text>
               {selectedStory.createdAt && (
                 <Text dimColor>
                   Created: {new Date(selectedStory.createdAt).toLocaleString()}
@@ -594,8 +787,7 @@ export function Stories({ url }: { url: string }) {
               {storiesData?.stories.length ?? 0} on this page
             </Text>
             <Text dimColor>
-              Total: {storiesData?.total ?? 0} • Page {currentPage}/
-              {totalPages}
+              Total: {storiesData?.total ?? 0} • Page {currentPage}/{totalPages}
             </Text>
           </Box>
 
@@ -604,7 +796,7 @@ export function Stories({ url }: { url: string }) {
             {hasPrev ? " • ← previous page" : ""}
             {hasNext ? " • → next page" : ""}
             {" • c create"}
-            {selectedStory ? " • x delete" : ""} • q exit
+            {selectedStory ? " • e edit • x delete" : ""} • q exit
           </HelpText>
           {isOperationLoading && <LoadingText>Working...</LoadingText>}
           {operationMessage && <WarningText>{operationMessage}</WarningText>}

@@ -192,6 +192,8 @@ export type CreateStoryResponse = {
   story: Story;
 };
 
+export type UpdateStoryRequest = Partial<CreateStoryRequest>;
+
 
 export class ApiClient {
   private baseUrl: string;
@@ -374,6 +376,26 @@ export class ApiClient {
       `${this.baseUrl}/s`,
       {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      },
+    );
+
+    return data;
+  }
+
+  async updateStory(
+    token: string,
+    storyId: number,
+    request: UpdateStoryRequest,
+  ): Promise<CreateStoryResponse> {
+    const { data } = await fetchWithTimeout<CreateStoryResponse>(
+      `${this.baseUrl}/s/${storyId}`,
+      {
+        method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
