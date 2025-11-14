@@ -44,6 +44,11 @@ export type UpdatePasswordView = {
   option?: never;
 };
 
+export type StoryView = {
+  kind: "/story";
+  option?: never;
+};
+
 export type View =
   | TextView
   | CommanderView
@@ -52,7 +57,8 @@ export type View =
   | LogoutView
   | AdminUsersView
   | UpdateNameView
-  | UpdatePasswordView;
+  | UpdatePasswordView
+  | StoryView;
 
 export type Session = {
   bearerToken: string;

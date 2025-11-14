@@ -153,6 +153,35 @@ export type SelfUpdateResponse = {
   user?: SessionResponse["user"];
 };
 
+export type Story = {
+  id: number;
+  userId: string;
+  name: string;
+  embeddingProvider: string;
+  llmProvider: string;
+  handler: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type StoryMessage = {
+  id: number;
+  storyId: number;
+  role: string;
+  content: string;
+  extracted: boolean;
+  createdAt?: string;
+};
+
+export type StoryListResponse = {
+  stories: Story[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasNext: boolean;
+};
+
+
 export class ApiClient {
   private baseUrl: string;
 
@@ -303,6 +332,29 @@ export class ApiClient {
 
     return { response: data, token: updatedToken };
   }
+
+  async listStories(
+    token: string,
+    params: { limit: number; offset: number },
+  ): Promise<StoryListResponse> {
+    const query = new URLSearchParams({
+      limit: params.limit.toString(),
+      offset: params.offset.toString(),
+    });
+
+    const { data } = await fetchWithTimeout<StoryListResponse>(
+      `${this.baseUrl}/s?${query.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      },
+    );
+
+    return data;
+  }
+
 }
 
 export function createApiClient(baseUrl: string): ApiClient {

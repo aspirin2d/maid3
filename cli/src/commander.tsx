@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAddViews, useSession } from "./context.js";
 
 import Fuse from "fuse.js";
 
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 
 const guestCommands = [
@@ -29,6 +29,10 @@ const adminCommands = [
 ];
 
 const authedCommands = [
+  {
+    id: "/story",
+    desc: "browse your stories",
+  },
   {
     id: "/update/name",
     desc: "update your name",
@@ -69,13 +73,36 @@ export default function Commander() {
   }, [availableCommands]);
 
   const [query, setQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const searchList = useMemo(() => {
     return commandFuse.search(query); // Perform search based on the current query
   }, [query, commandFuse]);
 
+  useEffect(() => {
+    if (!searchList.length) {
+      setSelectedIndex(0);
+      return;
+    }
+    setSelectedIndex(0);
+  }, [searchList]);
+
+  useInput((_input, key) => {
+    if (!searchList.length) return;
+    if (key.downArrow) {
+      setSelectedIndex((prev) => (prev + 1) % searchList.length);
+      return;
+    }
+    if (key.upArrow) {
+      setSelectedIndex((prev) =>
+        prev - 1 < 0 ? searchList.length - 1 : prev - 1,
+      );
+      return;
+    }
+  });
+
   const onSubmit = useCallback(() => {
-    const q = searchList.length > 0 ? searchList[0] : null;
+    const q = searchList.length > 0 ? searchList[selectedIndex] : null;
     if (!q) return;
 
     switch (q.item.id) {
@@ -83,6 +110,7 @@ export default function Commander() {
       case "/signup":
       case "/logout":
       case "/admin/users":
+      case "/story":
       case "/update/name":
       case "/update/password":
         addViews(
@@ -106,7 +134,7 @@ export default function Commander() {
         ]);
         setTimeout(() => process.exit(0), 100);
     }
-  }, [searchList, addViews]);
+  }, [searchList, selectedIndex, addViews]);
 
   return (
     <Box flexDirection="column">
@@ -121,20 +149,20 @@ export default function Commander() {
       </Box>
       {query.length > 0 &&
         searchList.map((res, index) => (
-          <Box flexDirection="column" key={index}>
+          <Box flexDirection="column" key={index} marginX={2}>
             <Box>
               <Box width={18}>
                 <Text
-                  color={index === 0 ? "cyan" : undefined}
-                  bold={index === 0}
+                  color={index === selectedIndex ? "cyan" : undefined}
+                  bold={index === selectedIndex}
                 >
                   {res.item.id}
                 </Text>
               </Box>
               <Text
-                color={index === 0 ? "cyan" : undefined}
+                color={index === selectedIndex ? "cyan" : undefined}
                 dimColor
-                bold={index === 0}
+                bold={index === selectedIndex}
               >
                 {res.item.desc}
               </Text>
