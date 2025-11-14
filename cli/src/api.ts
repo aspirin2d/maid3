@@ -181,6 +181,17 @@ export type StoryListResponse = {
   hasNext: boolean;
 };
 
+export type CreateStoryRequest = {
+  name: string;
+  embeddingProvider?: "openai" | "ollama" | "dashscope";
+  llmProvider?: "openai" | "ollama";
+  handler?: string;
+};
+
+export type CreateStoryResponse = {
+  story: Story;
+};
+
 
 export class ApiClient {
   private baseUrl: string;
@@ -353,6 +364,37 @@ export class ApiClient {
     );
 
     return data;
+  }
+
+  async createStory(
+    token: string,
+    request: CreateStoryRequest,
+  ): Promise<CreateStoryResponse> {
+    const { data } = await fetchWithTimeout<CreateStoryResponse>(
+      `${this.baseUrl}/s`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      },
+    );
+
+    return data;
+  }
+
+  async deleteStory(token: string, storyId: number): Promise<void> {
+    await fetchWithTimeout(
+      `${this.baseUrl}/s/${storyId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
   }
 
 }
