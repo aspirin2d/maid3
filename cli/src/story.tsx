@@ -15,46 +15,23 @@ import {
   FormContainer,
   HelpText,
   LoadingText,
-  Select,
   WarningText,
 } from "./ui.js";
 
 type ViewMode = "list" | "confirm-delete" | "create" | "edit";
-type StoryFormStep = "name" | "embeddingProvider" | "llmProvider" | "handler";
+type StoryFormStep = "name" | "handler";
 
 type StoryFormData = {
   name: string;
-  embeddingProvider: string;
-  llmProvider: string;
   handler: string;
 };
 
 const createEmptyStoryForm = (): StoryFormData => ({
   name: "",
-  embeddingProvider: "",
-  llmProvider: "",
   handler: "",
 });
 
 const PAGE_SIZE = 10;
-const EMBEDDING_PROVIDERS = ["openai", "ollama", "dashscope"] as const;
-const LLM_PROVIDERS = ["openai", "ollama"] as const;
-
-const EMBEDDING_OPTIONS = [
-  { label: "Default (server config)", value: "" },
-  ...EMBEDDING_PROVIDERS.map((provider) => ({
-    label: provider,
-    value: provider,
-  })),
-];
-
-const LLM_OPTIONS = [
-  { label: "Default (server config)", value: "" },
-  ...LLM_PROVIDERS.map((provider) => ({
-    label: provider,
-    value: provider,
-  })),
-];
 
 function clampIndex(index: number, length: number): number {
   if (length === 0) return 0;
@@ -230,24 +207,6 @@ export function Stories({ url }: { url: string }) {
       return "Story name must be 200 characters or less";
     }
 
-    if (storyFormData.embeddingProvider) {
-      const validEmbedding = EMBEDDING_PROVIDERS.some(
-        (p) => p === storyFormData.embeddingProvider,
-      );
-      if (!validEmbedding) {
-        return `Embedding provider must be one of: ${EMBEDDING_PROVIDERS.join(", ")} or leave blank`;
-      }
-    }
-
-    if (storyFormData.llmProvider) {
-      const validLlm = LLM_PROVIDERS.some(
-        (p) => p === storyFormData.llmProvider,
-      );
-      if (!validLlm) {
-        return `LLM provider must be one of: ${LLM_PROVIDERS.join(", ")} or leave blank`;
-      }
-    }
-
     if (storyFormData.handler && storyFormData.handler.length > 100) {
       return "Handler must be 100 characters or less";
     }
@@ -271,16 +230,6 @@ export function Stories({ url }: { url: string }) {
       const payload: CreateStoryRequest = {
         name: storyFormData.name.trim(),
       };
-
-      if (storyFormData.embeddingProvider) {
-        payload.embeddingProvider =
-          storyFormData.embeddingProvider as CreateStoryRequest["embeddingProvider"];
-      }
-
-      if (storyFormData.llmProvider) {
-        payload.llmProvider =
-          storyFormData.llmProvider as CreateStoryRequest["llmProvider"];
-      }
 
       if (storyFormData.handler.trim()) {
         payload.handler = storyFormData.handler.trim();
@@ -326,17 +275,6 @@ export function Stories({ url }: { url: string }) {
       payload.name = trimmedName;
     }
 
-    const embedding = storyFormData.embeddingProvider;
-    if (embedding && embedding !== (storyBeingEdited.embeddingProvider ?? "")) {
-      payload.embeddingProvider =
-        embedding as UpdateStoryRequest["embeddingProvider"];
-    }
-
-    const llm = storyFormData.llmProvider;
-    if (llm && llm !== (storyBeingEdited.llmProvider ?? "")) {
-      payload.llmProvider = llm as UpdateStoryRequest["llmProvider"];
-    }
-
     const handler = storyFormData.handler.trim();
     if (handler && handler !== (storyBeingEdited.handler ?? "")) {
       payload.handler = handler;
@@ -358,6 +296,7 @@ export function Stories({ url }: { url: string }) {
 
       setStoryBeingEdited(null);
       resetFormState();
+      exitToCommander("Story updated");
     } catch (err) {
       setOperationError(
         err instanceof Error ? err.message : "Failed to update story",
@@ -371,6 +310,7 @@ export function Stories({ url }: { url: string }) {
     storyFormData,
     apiClient,
     validateStoryForm,
+    exitToCommander,
     resetFormState,
     clearOperationState,
   ]);
@@ -404,48 +344,15 @@ export function Stories({ url }: { url: string }) {
         setOperationError("Story name must be 200 characters or less");
       } else {
         setOperationError(null);
-        setFormStep("embeddingProvider");
+        setFormStep("handler");
       }
-    } else if (formStep === "embeddingProvider") {
-      if (storyFormData.embeddingProvider) {
-        const validEmbedding = EMBEDDING_PROVIDERS.some(
-          (p) => p === storyFormData.embeddingProvider,
-        );
-        if (!validEmbedding) {
-          setOperationError(
-            `Embedding provider must be one of: ${EMBEDDING_PROVIDERS.join(", ")} or leave blank`,
-          );
-          return;
-        }
-      }
-      setOperationError(null);
-      setFormStep("llmProvider");
-    } else if (formStep === "llmProvider") {
-      if (storyFormData.llmProvider) {
-        const validLlm = LLM_PROVIDERS.some(
-          (p) => p === storyFormData.llmProvider,
-        );
-        if (!validLlm) {
-          setOperationError(
-            `LLM provider must be one of: ${LLM_PROVIDERS.join(", ")} or leave blank`,
-          );
-          return;
-        }
-      }
-      setOperationError(null);
-      setFormStep("handler");
     }
   }, [formStep, storyFormData]);
 
   const handleFormStepNavigation = useCallback(
     (direction: number) => {
       setOperationError(null);
-      const steps: StoryFormStep[] = [
-        "name",
-        "embeddingProvider",
-        "llmProvider",
-        "handler",
-      ];
+      const steps: StoryFormStep[] = ["name", "handler"];
       const currentIndex = steps.indexOf(formStep);
       const nextIndex = currentIndex + direction;
 
@@ -477,8 +384,6 @@ export function Stories({ url }: { url: string }) {
     setStoryBeingEdited(selectedStory);
     setStoryFormData({
       name: selectedStory.name,
-      embeddingProvider: selectedStory.embeddingProvider ?? "",
-      llmProvider: selectedStory.llmProvider ?? "",
       handler: selectedStory.handler ?? "",
     });
     setFormStep("name");
@@ -596,8 +501,7 @@ export function Stories({ url }: { url: string }) {
         <Box flexDirection="column" borderStyle="single" paddingX={1}>
           <Text>{selectedStory.name}</Text>
           <Text dimColor>ID: {selectedStory.id}</Text>
-          <Text dimColor>Embedding: {selectedStory.embeddingProvider}</Text>
-          <Text dimColor>LLM: {selectedStory.llmProvider}</Text>
+          <Text dimColor>Handler: {selectedStory.handler}</Text>
         </Box>
         <WarningText>Are you sure you want to delete this story?</WarningText>
         {isOperationLoading ? (
@@ -635,46 +539,8 @@ export function Stories({ url }: { url: string }) {
           )}
         </FieldRow>
 
-        {(formStep === "embeddingProvider" ||
-          formStep === "llmProvider" ||
-          formStep === "handler") && (
-          <FieldRow label="Embedding">
-            <Select
-              options={EMBEDDING_OPTIONS}
-              value={storyFormData.embeddingProvider}
-              onChange={(value) =>
-                setStoryFormData((prev) => ({
-                  ...prev,
-                  embeddingProvider: value,
-                }))
-              }
-              placeholder="Default (server config)"
-              isFocused={formStep === "embeddingProvider"}
-              onSubmit={validateAndAdvanceFormStep}
-            />
-          </FieldRow>
-        )}
-
-        {(formStep === "llmProvider" || formStep === "handler") && (
-          <FieldRow label="LLM">
-            <Select
-              options={LLM_OPTIONS}
-              value={storyFormData.llmProvider}
-              onChange={(value) =>
-                setStoryFormData((prev) => ({
-                  ...prev,
-                  llmProvider: value,
-                }))
-              }
-              placeholder="Default (server config)"
-              isFocused={formStep === "llmProvider"}
-              onSubmit={validateAndAdvanceFormStep}
-            />
-          </FieldRow>
-        )}
-
-        {formStep === "handler" && (
-          <FieldRow label="Handler">
+        <FieldRow label="Handler">
+          {formStep === "handler" ? (
             <TextInput
               value={storyFormData.handler}
               onChange={(value) =>
@@ -688,26 +554,16 @@ export function Stories({ url }: { url: string }) {
               focus
               onSubmit={isEditing ? updateStory : createStory}
             />
-          </FieldRow>
-        )}
+          ) : (
+            <Text>{storyFormData.handler || "default"}</Text>
+          )}
+        </FieldRow>
 
         {formStep === "name" && (
           <HelpText>
             {isEditing
               ? "Press Tab to continue, Esc to cancel editing"
               : "Press Tab to continue, Esc to cancel"}
-          </HelpText>
-        )}
-        {formStep === "embeddingProvider" && (
-          <HelpText>
-            Use ↑/↓ to choose a model, Tab to continue, Shift+Tab to go back,
-            Esc to cancel
-          </HelpText>
-        )}
-        {formStep === "llmProvider" && (
-          <HelpText>
-            Use ↑/↓ to choose a model, Tab to continue, Shift+Tab to go back,
-            Esc to cancel
           </HelpText>
         )}
         {formStep === "handler" && (
@@ -746,7 +602,7 @@ export function Stories({ url }: { url: string }) {
             <Box flexDirection="column">
               {storiesData.stories.map((story, index) => {
                 const isSelected = index === selectedIndex;
-                const line = `${story.name} · ${story.llmProvider}/${story.embeddingProvider}`;
+                const line = `${story.name} · handler: ${story.handler}`;
                 return (
                   <Text
                     key={story.id}
@@ -767,10 +623,6 @@ export function Stories({ url }: { url: string }) {
             <Box flexDirection="column" borderStyle="single" paddingX={1}>
               <Text>{selectedStory.name}</Text>
               <Text dimColor>ID: {selectedStory.id}</Text>
-              <Text dimColor>
-                LLM: {selectedStory.llmProvider} | Embedding:{" "}
-                {selectedStory.embeddingProvider}
-              </Text>
               <Text dimColor>
                 Handler: {selectedStory.handler || "default"}
               </Text>

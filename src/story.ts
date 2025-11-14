@@ -14,13 +14,8 @@ const storyListQuerySchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional(),
 });
 
-const embeddingProviders = ["openai", "ollama", "dashscope"] as const;
-const llmProviders = ["openai", "ollama"] as const;
-
 const createStorySchema = z.object({
   name: z.string().trim().min(1).max(200),
-  embeddingProvider: z.enum(embeddingProviders).optional(),
-  llmProvider: z.enum(llmProviders).optional(),
   handler: z.string().trim().min(1).max(100).optional(),
 });
 
@@ -164,14 +159,6 @@ export const registerStoryRoutes = (app: Hono<AppEnv>, deps: StoryDeps) => {
       name: body.data.name,
     };
 
-    if (body.data.embeddingProvider) {
-      payload.embeddingProvider = body.data.embeddingProvider;
-    }
-
-    if (body.data.llmProvider) {
-      payload.llmProvider = body.data.llmProvider;
-    }
-
     if (body.data.handler) {
       payload.handler = body.data.handler;
     }
@@ -227,12 +214,6 @@ export const registerStoryRoutes = (app: Hono<AppEnv>, deps: StoryDeps) => {
       const updateData: Partial<typeof story.$inferInsert> = {};
       if (typeof body.data.name !== "undefined")
         updateData.name = body.data.name;
-      if (typeof body.data.embeddingProvider !== "undefined") {
-        updateData.embeddingProvider = body.data.embeddingProvider;
-      }
-      if (typeof body.data.llmProvider !== "undefined") {
-        updateData.llmProvider = body.data.llmProvider;
-      }
       if (typeof body.data.handler !== "undefined") {
         updateData.handler = body.data.handler;
       }

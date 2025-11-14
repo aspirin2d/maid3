@@ -157,8 +157,6 @@ export type Story = {
   id: number;
   userId: string;
   name: string;
-  embeddingProvider: string;
-  llmProvider: string;
   handler: string;
   createdAt?: string;
   updatedAt?: string;
@@ -183,8 +181,6 @@ export type StoryListResponse = {
 
 export type CreateStoryRequest = {
   name: string;
-  embeddingProvider?: "openai" | "ollama" | "dashscope";
-  llmProvider?: "openai" | "ollama";
   handler?: string;
 };
 
