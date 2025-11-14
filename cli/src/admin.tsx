@@ -94,7 +94,6 @@ export function AdminUsers({ url }: { url: string }) {
   useEffect(() => {
     if (!session?.bearerToken || !session.isAdmin) return;
 
-    const controller = new AbortController();
     let cancelled = false;
 
     const fetchUsers = async () => {
@@ -147,7 +146,6 @@ export function AdminUsers({ url }: { url: string }) {
 
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, [session?.bearerToken, session?.isAdmin, currentPage, apiClient, refreshTrigger]);
 

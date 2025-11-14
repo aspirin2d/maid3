@@ -103,20 +103,24 @@ export default function App({ url }: { url: string }) {
               },
             },
           ]);
+          return null; // Stop the promise chain
         }
-
         return res.json();
       })
       .then((data) => {
-        setSession({
-          ...session,
-          isAdmin: data.user.role === "admin",
+        if (!data) return; // Guard clause for failed validation
+        setSession((prev) => {
+          if (!prev) return null; // Guard against race condition
+          return {
+            ...prev,
+            isAdmin: data.user.role === "admin",
+          };
         });
       })
       .catch(() => {
         // Network error - keep session, will fail on next request
       });
-  }, []); // Run once on mount
+  }, [url]); // Run once on mount, re-run if URL changes
 
   return (
     <viewContext.Provider value={{ views, setViews, session, setSession }}>
