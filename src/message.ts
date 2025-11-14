@@ -12,7 +12,11 @@ import { story, message } from "./db/schema.js";
  */
 export async function getMessagesByUser(
   userId: string,
-  filters?: { storyId?: number; extracted?: boolean },
+  filters?: {
+    storyId?: number;
+    extracted?: boolean;
+    role?: "system" | "assistant" | "user";
+  },
   options?: { limit?: number; offset?: number },
 ) {
   const conditions = [eq(story.userId, userId)];
@@ -23,6 +27,10 @@ export async function getMessagesByUser(
 
   if (filters?.extracted !== undefined) {
     conditions.push(eq(message.extracted, filters.extracted));
+  }
+
+  if (filters?.role !== undefined) {
+    conditions.push(eq(message.role, filters.role));
   }
 
   const whereClause =

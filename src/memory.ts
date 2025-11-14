@@ -19,6 +19,7 @@ export async function extractMemory(userId: string): Promise<{
   // Step 1: Fetch unextracted messages from the given user
   const unextracted = await getMessagesByUser(userId, {
     extracted: false,
+    role: "user",
   });
 
   if (unextracted.length === 0) {
@@ -146,8 +147,8 @@ export async function extractMemory(userId: string): Promise<{
               action: "UPDATE",
             })
             .where(eq(memory.id, originalMemoryId));
+          memoriesUpdated++;
         }
-        memoriesUpdated++;
       }
     }
 
