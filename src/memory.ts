@@ -1,7 +1,8 @@
 import { cosineDistance, desc, eq, gt, and, sql } from "drizzle-orm";
+import type { z } from "zod";
 import { db } from "./db/index.js";
-import { memory, message } from "./db/schema.js";
-import { getMessagesByUser } from "./message.js";
+import { memory } from "./db/schema.js";
+import { getPendingUserMessages, markMessagesAsExtracted } from "./message.js";
 import { Embeddding, StructureResponse } from "./openai.js";
 import {
   FactRetrievalSchema,
@@ -10,84 +11,99 @@ import {
   MemoryUpdateSchema,
 } from "./prompts/memory.js";
 
-export async function extractMemory(userId: string): Promise<{
+type MemoryExtractionStats = {
   factsExtracted: number;
   memoriesAdded: number;
   memoriesUpdated: number;
   messagesExtracted: number;
-}> {
-  // Step 1: Fetch unextracted messages from the given user
-  const unextracted = await getMessagesByUser(userId, {
-    extracted: false,
-    role: "user",
-  });
+};
 
-  if (unextracted.length === 0) {
-    return {
-      factsExtracted: 0,
-      memoriesAdded: 0,
-      memoriesUpdated: 0,
-      messagesExtracted: 0,
+type ConversationMessage = Awaited<
+  ReturnType<typeof getPendingUserMessages>
+>[number];
+
+type RetrievedFact = z.infer<typeof FactRetrievalSchema>["facts"][number];
+
+type ExistingMemory = {
+  unifiedId: string;
+  originalId: number;
+  text: string;
+};
+
+type FactMetadata = Pick<
+  RetrievedFact,
+  "category" | "importance" | "confidence"
+>;
+
+type PreparedDecision =
+  | {
+      kind: "ADD";
+      text: string;
+      metadata: FactMetadata;
+      embeddingKey: string;
+    }
+  | {
+      kind: "UPDATE";
+      memoryIndex: number;
+      text: string;
+      embeddingKey: string;
     };
+
+type DecisionPlan = {
+  decisions: PreparedDecision[];
+  embeddingByText: Map<string, number[]>;
+};
+
+type MemoryUpdateDecision = z.infer<
+  typeof MemoryUpdateSchema
+>["memory"][number];
+
+const EMPTY_STATS: MemoryExtractionStats = {
+  factsExtracted: 0,
+  memoriesAdded: 0,
+  memoriesUpdated: 0,
+  messagesExtracted: 0,
+};
+
+const SIMILAR_MEMORY_TOP_K = 3;
+const MIN_MEMORY_SIMILARITY = 0.7;
+
+export async function extractMemory(
+  userId: string,
+): Promise<MemoryExtractionStats> {
+  // Gather the latest user-only messages that still need memory extraction.
+  const pendingMessages = await getPendingUserMessages(userId);
+  if (pendingMessages.length === 0) {
+    return EMPTY_STATS;
   }
 
-  // Parse messages into a single string for fact extraction
-  const contents = unextracted.map((msg) => `${msg.role}: ${msg.content}`);
-  const parsed = contents.join("\n\n");
-
-  // Step 2: Extract facts from conversation with LLM
-  const factExtractionPrompt = getFactRetrievalMessages(parsed);
-  const { facts } = await StructureResponse(
-    factExtractionPrompt,
-    FactRetrievalSchema,
-  );
-
-  // If no facts extracted, mark messages as extracted and return
+  // Let the LLM convert free-form conversation into normalized facts.
+  const facts = await extractFactsFromMessages(pendingMessages);
   if (facts.length === 0) {
-    await markMessagesAsExtracted(unextracted.map((msg) => msg.id));
+    await markMessagesAsExtracted(pendingMessages.map((msg) => msg.id));
     return {
-      factsExtracted: 0,
-      memoriesUpdated: 0,
-      memoriesAdded: 0,
-      messagesExtracted: unextracted.length,
+      ...EMPTY_STATS,
+      messagesExtracted: pendingMessages.length,
     };
   }
 
-  // Step 3: Prepare similarity context (with unified IDs: 1, 2, 3...)
-  // Generate embeddings for all facts
+  // Embed every fact once so we can both search for similar memories
+  // and avoid redundant OpenAI calls during insert/update later on.
   const factTexts = facts.map((fact) => fact.text);
   const factEmbeddings = await Embeddding(factTexts);
 
-  // Search for similar memories for each fact
-  const similarMemories = await bulkSearchSimilarMemories(factEmbeddings, {
-    topK: 3,
-    userId: userId,
-    minSimilarity: 0.7, // Only consider memories with 70%+ similarity
+  // Pull the most relevant existing memories for comparison, using
+  // cosine similarity against the freshly embedded facts.
+  const existingMemories = await buildExistingMemoryContext({
+    userId,
+    factEmbeddings,
   });
-
-  // Collect all unique similar memories across all facts
-  const uniqueMemoriesMap = new Map<number, { id: number; content: string }>();
-  for (const results of similarMemories) {
-    for (const result of results) {
-      if (!uniqueMemoriesMap.has(result.memory.id)) {
-        uniqueMemoriesMap.set(result.memory.id, {
-          id: result.memory.id,
-          content: result.memory.content || "",
-        });
-      }
-    }
-  }
-
-  // Create unified ID mapping for existing memories (1, 2, 3...)
-  const existingMemories = Array.from(uniqueMemoriesMap.values());
-  const unifiedExistingMemories = existingMemories.map((mem, index) => ({
-    id: String(index + 1),
-    text: mem.content,
-    originalId: mem.id,
-  }));
-
-  // Create unified ID mapping for new facts (continuing from existing memories count)
   const startFactId = existingMemories.length + 1;
+
+  const unifiedExisting = existingMemories.map(({ unifiedId, text }) => ({
+    id: unifiedId,
+    text,
+  }));
   const unifiedNewFacts = facts.map((fact, index) => ({
     id: String(startFactId + index),
     text: fact.text,
@@ -96,72 +112,137 @@ export async function extractMemory(userId: string): Promise<{
     confidence: fact.confidence,
   }));
 
-  // Step 4: Decide memory actions with LLM
+  // Ask the LLM to decide whether each fact is new (ADD) or should
+  // revise an existing memory (UPDATE).
   const memoryUpdatePrompt = getUpdateMemoryMessages(
-    unifiedExistingMemories,
+    unifiedExisting,
     unifiedNewFacts,
   );
-
-  const parsedDecisions = await StructureResponse(
+  const memoryUpdateOutput = await StructureResponse(
     memoryUpdatePrompt,
     MemoryUpdateSchema,
   );
 
-  type PreparedDecision =
-    | {
-        type: "ADD";
-        text: string;
-        metadata: {
-          category: string;
-          importance: number;
-          confidence: number;
-        };
-        embeddingKey: string;
-      }
-    | {
-        type: "UPDATE";
-        memoryIndex: number;
-        text: string;
-        embeddingKey: string;
-      };
+  // Translate LLM output into concrete DB operations and batch any
+  // additional embeddings that we still need before touching the DB.
+  const decisionPlan = await buildDecisionPlan({
+    facts,
+    factEmbeddings,
+    existingMemories,
+    startFactId,
+    decisions: memoryUpdateOutput.memory,
+  });
 
+  // Apply ADD/UPDATE decisions within a single transaction, then mark
+  // all processed messages as extracted.
+  const { memoriesAdded, memoriesUpdated } = await applyDecisionPlan({
+    userId,
+    plan: decisionPlan,
+    existingMemories,
+    messageIds: pendingMessages.map((msg) => msg.id),
+  });
+
+  return {
+    factsExtracted: facts.length,
+    memoriesAdded,
+    memoriesUpdated,
+    messagesExtracted: pendingMessages.length,
+  };
+}
+
+async function extractFactsFromMessages(
+  messages: ConversationMessage[],
+): Promise<RetrievedFact[]> {
+  const conversation = formatMessagesForFactExtraction(messages);
+  const prompt = getFactRetrievalMessages(conversation);
+  const { facts } = await StructureResponse(prompt, FactRetrievalSchema);
+  return facts;
+}
+
+function formatMessagesForFactExtraction(
+  messages: ConversationMessage[],
+): string {
+  return messages.map((msg) => `${msg.role}: ${msg.content}`).join("\n\n");
+}
+
+async function buildExistingMemoryContext(params: {
+  userId: string;
+  factEmbeddings: number[][];
+}): Promise<ExistingMemory[]> {
+  if (params.factEmbeddings.length === 0) {
+    return [];
+  }
+
+  const similarMemories = await bulkSearchSimilarMemories(
+    params.factEmbeddings,
+    {
+      topK: SIMILAR_MEMORY_TOP_K,
+      userId: params.userId,
+      minSimilarity: MIN_MEMORY_SIMILARITY,
+    },
+  );
+
+  const uniqueMemories = new Map<number, { id: number; content: string }>();
+  for (const results of similarMemories) {
+    for (const { memory: mem } of results) {
+      if (!uniqueMemories.has(mem.id)) {
+        uniqueMemories.set(mem.id, {
+          id: mem.id,
+          content: mem.content ?? "",
+        });
+      }
+    }
+  }
+
+  return Array.from(uniqueMemories.values()).map((mem, index) => ({
+    unifiedId: String(index + 1),
+    originalId: mem.id,
+    text: mem.content,
+  }));
+}
+
+async function buildDecisionPlan(params: {
+  facts: RetrievedFact[];
+  factEmbeddings: number[][];
+  existingMemories: ExistingMemory[];
+  startFactId: number;
+  decisions: MemoryUpdateDecision[];
+}): Promise<DecisionPlan> {
   const embeddingByText = new Map<string, number[]>();
-  factTexts.forEach((text, index) => {
-    if (!embeddingByText.has(text)) {
-      embeddingByText.set(text, factEmbeddings[index]);
+  params.facts.forEach((fact, index) => {
+    if (!embeddingByText.has(fact.text)) {
+      embeddingByText.set(fact.text, params.factEmbeddings[index]);
     }
   });
 
   const textsToEmbed: string[] = [];
-  const embedTextSet = new Set<string>();
-  const queueEmbeddingText = (text: string) => {
-    if (text.length === 0 || embeddingByText.has(text) || embedTextSet.has(text)) {
+  const pendingEmbeddingTexts = new Set<string>();
+  const queueEmbedding = (text: string) => {
+    if (!text || embeddingByText.has(text) || pendingEmbeddingTexts.has(text)) {
       return;
     }
-    embedTextSet.add(text);
+    pendingEmbeddingTexts.add(text);
     textsToEmbed.push(text);
   };
 
-  const preparedDecisions: PreparedDecision[] = [];
-  for (const decision of parsedDecisions.memory) {
+  const prepared: PreparedDecision[] = [];
+  for (const decision of params.decisions) {
     const decisionId = parseInt(decision.id, 10);
+    if (Number.isNaN(decisionId)) {
+      continue;
+    }
+
     if (decision.event === "ADD") {
-      const factIndex = decisionId - startFactId;
-      if (factIndex < 0 || factIndex >= unifiedNewFacts.length) {
-        continue;
-      }
-      const fact = facts[factIndex];
-      const factEmbedding = factEmbeddings[factIndex];
-      if (!factEmbedding) {
+      const factIndex = decisionId - params.startFactId;
+      if (factIndex < 0 || factIndex >= params.facts.length) {
         continue;
       }
 
-      const hasCustomText = Boolean(decision.text && decision.text.length > 0);
-      const text = hasCustomText ? decision.text : fact.text;
-      queueEmbeddingText(text);
-
-      preparedDecisions.push({
-        type: "ADD",
+      const fact = params.facts[factIndex];
+      const text = decision.text?.length ? decision.text : fact.text;
+      queueEmbedding(text);
+      prepared.push({
+        kind: "ADD",
         text,
         metadata: {
           category: fact.category,
@@ -172,14 +253,14 @@ export async function extractMemory(userId: string): Promise<{
       });
     } else if (decision.event === "UPDATE") {
       const memoryIndex = decisionId - 1;
-      if (memoryIndex < 0 || memoryIndex >= unifiedExistingMemories.length) {
+      if (memoryIndex < 0 || memoryIndex >= params.existingMemories.length) {
         continue;
       }
 
       const text = decision.text;
-      queueEmbeddingText(text);
-      preparedDecisions.push({
-        type: "UPDATE",
+      queueEmbedding(text);
+      prepared.push({
+        kind: "UPDATE",
         memoryIndex,
         text,
         embeddingKey: text,
@@ -187,25 +268,40 @@ export async function extractMemory(userId: string): Promise<{
     }
   }
 
-  const embeddedOverrideVectors =
+  const overrideEmbeddings =
     textsToEmbed.length > 0 ? await Embeddding(textsToEmbed) : [];
   textsToEmbed.forEach((text, index) => {
-    embeddingByText.set(text, embeddedOverrideVectors[index]);
+    embeddingByText.set(text, overrideEmbeddings[index]);
   });
 
-  // Step 5: Apply memory decisions and mark messages
-  let memoriesUpdated = 0;
-  let memoriesAdded = 0;
-  await db.transaction(async (tx) => {
-    for (const decision of preparedDecisions) {
-      if (decision.type === "ADD") {
-        const embedding = embeddingByText.get(decision.embeddingKey);
-        if (!embedding) {
-          continue;
-        }
+  return {
+    decisions: prepared,
+    embeddingByText,
+  };
+}
 
+async function applyDecisionPlan(params: {
+  userId: string;
+  plan: DecisionPlan;
+  existingMemories: ExistingMemory[];
+  messageIds: number[];
+}): Promise<{
+  memoriesAdded: number;
+  memoriesUpdated: number;
+}> {
+  let memoriesAdded = 0;
+  let memoriesUpdated = 0;
+
+  await db.transaction(async (tx) => {
+    for (const decision of params.plan.decisions) {
+      const embedding = params.plan.embeddingByText.get(decision.embeddingKey);
+      if (!embedding) {
+        continue;
+      }
+
+      if (decision.kind === "ADD") {
         await tx.insert(memory).values({
-          userId: userId,
+          userId: params.userId,
           content: decision.text,
           embedding,
           category: decision.metadata.category,
@@ -214,44 +310,30 @@ export async function extractMemory(userId: string): Promise<{
           action: "ADD",
         });
         memoriesAdded++;
-      } else {
-        const originalMemory =
-          unifiedExistingMemories[decision.memoryIndex] ?? null;
-        if (!originalMemory) {
-          continue;
-        }
-        const embedding = embeddingByText.get(decision.embeddingKey);
-        if (!embedding) {
-          continue;
-        }
-
-        await tx
-          .update(memory)
-          .set({
-            content: decision.text,
-            prevContent: originalMemory.text,
-            embedding,
-            action: "UPDATE",
-          })
-          .where(eq(memory.id, originalMemory.originalId));
-        memoriesUpdated++;
+        continue;
       }
+
+      const targetMemory = params.existingMemories[decision.memoryIndex];
+      if (!targetMemory) {
+        continue;
+      }
+
+      await tx
+        .update(memory)
+        .set({
+          content: decision.text,
+          prevContent: targetMemory.text,
+          embedding,
+          action: "UPDATE",
+        })
+        .where(eq(memory.id, targetMemory.originalId));
+      memoriesUpdated++;
     }
 
-    for (const msg of unextracted) {
-      await tx
-        .update(message)
-        .set({ extracted: true })
-        .where(eq(message.id, msg.id));
-    }
+    await markMessagesAsExtracted(params.messageIds, tx);
   });
 
-  return {
-    factsExtracted: facts.length,
-    memoriesUpdated,
-    memoriesAdded,
-    messagesExtracted: unextracted.length,
-  };
+  return { memoriesAdded, memoriesUpdated };
 }
 
 /**
@@ -292,13 +374,11 @@ export async function bulkSearchSimilarMemories(
 
 /**
  * Search for similar memories using a single query embedding
- *
  * @param queryEmbedding - Query embedding vector (1536 dimensions)
  * @param options - Search options
  * @param options.topK - Number of top results to return (default: 5)
  * @param options.userId - Optional user ID to filter results by user
  * @param options.minSimilarity - Minimum similarity threshold (0-1, default: 0)
- * @param options.category - Optional category filter
  * @returns Array of similar memories with similarity scores
  */
 export async function searchSimilarMemories(
@@ -326,18 +406,4 @@ export async function searchSimilarMemories(
     )
     .orderBy((t) => desc(t.similariy))
     .limit(topK);
-}
-
-/**
- * Helper function to mark messages as extracted (without transaction)
- */
-async function markMessagesAsExtracted(messageIds: number[]): Promise<void> {
-  if (messageIds.length === 0) return;
-
-  for (const msgId of messageIds) {
-    await db
-      .update(message)
-      .set({ extracted: true })
-      .where(eq(message.id, msgId));
-  }
 }

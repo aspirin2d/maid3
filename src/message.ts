@@ -1,6 +1,6 @@
-import { eq, and, asc } from "drizzle-orm";
+import { asc, and, eq } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { story, message } from "./db/schema.js";
+import { message, story } from "./db/schema.js";
 
 /**
  * Query messages by user with optional filters
@@ -60,4 +60,27 @@ export async function getMessagesByUser(
       : limitedQuery;
 
   return await finalQuery;
+}
+
+export async function getPendingUserMessages(userId: string) {
+  return await getMessagesByUser(userId, {
+    extracted: false,
+    role: "user",
+  });
+}
+
+type MessageMutator = Pick<typeof db, "update">;
+
+export async function markMessagesAsExtracted(
+  messageIds: number[],
+  executor: MessageMutator = db,
+) {
+  if (messageIds.length === 0) return;
+
+  for (const msgId of messageIds) {
+    await executor
+      .update(message)
+      .set({ extracted: true })
+      .where(eq(message.id, msgId));
+  }
 }
