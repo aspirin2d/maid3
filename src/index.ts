@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { initializeDefaultAdmin, registerAdminRoutes } from "./admin.js";
-import type { AppContext, AppEnv } from "./app-env.js";
+import type { AppContext, AppEnv } from "./env.js";
 import { auth } from "./auth.js";
 import { env } from "./env.js";
 import { registerOpenAiRoutes } from "./openai.js";

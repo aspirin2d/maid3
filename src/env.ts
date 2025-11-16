@@ -1,5 +1,17 @@
 import "dotenv/config";
 
+import type { Context } from "hono";
+import { auth } from "./auth.js";
+
+export type AppEnv = {
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+  };
+};
+
+export type AppContext = Context<AppEnv>;
+
 /**
  * Validates and exports environment variables
  * Throws error at startup if required variables are missing or invalid

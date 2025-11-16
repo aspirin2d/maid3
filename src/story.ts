@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Hono } from "hono";
 import { z } from "zod";
-import type { AppContext, AppEnv } from "./app-env.js";
+import type { AppContext, AppEnv } from "./env.js";
 import { db } from "./db/index.js";
 import { message, story } from "./db/schema.js";
 

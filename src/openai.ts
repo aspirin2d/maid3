@@ -2,13 +2,13 @@ import type { Hono } from "hono";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import type { AppEnv } from "./app-env.js";
+import type { AppEnv } from "./env.js";
 import { env } from "./env.js";
 
 const RESPONSE_MODEL = env.OPENAI_RESPONSE_MODEL ?? "gpt-4.1";
 const EMBEDDING_MODEL = env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
 
-export async function StructureResponse<TFormat extends z.ZodTypeAny>(
+export async function Response<TFormat extends z.ZodTypeAny>(
   prompt: string,
   format: TFormat,
 ): Promise<z.infer<TFormat>> {
@@ -22,9 +22,9 @@ export async function StructureResponse<TFormat extends z.ZodTypeAny>(
 
   return res.output_parsed as z.infer<TFormat>;
 }
-export async function Embeddding(input: string): Promise<number[]>;
-export async function Embeddding(input: Array<string>): Promise<number[][]>;
-export async function Embeddding(input: string | Array<string>) {
+export async function Embed(input: string): Promise<number[]>;
+export async function Embed(input: Array<string>): Promise<number[][]>;
+export async function Embed(input: string | Array<string>) {
   const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
   const res = await client.embeddings.create({
     input: input,
@@ -56,11 +56,11 @@ export const registerOpenAiRoutes = (app: Hono<AppEnv>) => {
         user?.name?.trim() && user.name.trim().length > 0
           ? user.name.trim()
           : (user?.email ?? "friend");
-      const hello = await StructureResponse(
+      const hello = await Response(
         createHelloPrompt(displayName),
         helloResponseSchema,
       );
-      const embedding = await Embeddding(hello.greeting);
+      const embedding = await Embed(hello.greeting);
       return c.json({ ...hello, embedding });
     } catch (error) {
       console.error("Failed to generate OpenAI hello response", error);

@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { db } from "./db/index.js";
 import { memory } from "./db/schema.js";
 import { getPendingUserMessages, markMessagesAsExtracted } from "./message.js";
-import { Embeddding, StructureResponse } from "./openai.js";
+import { Embed, Response } from "./openai.js";
 import {
   FactRetrievalSchema,
   getFactRetrievalMessages,
@@ -90,7 +90,7 @@ export async function extractMemory(
   // Embed every fact once so we can both search for similar memories
   // and avoid redundant OpenAI calls during insert/update later on.
   const factTexts = facts.map((fact) => fact.text);
-  const factEmbeddings = await Embeddding(factTexts);
+  const factEmbeddings = await Embed(factTexts);
 
   // Pull the most relevant existing memories for comparison, using
   // cosine similarity against the freshly embedded facts.
@@ -118,7 +118,7 @@ export async function extractMemory(
     unifiedExisting,
     unifiedNewFacts,
   );
-  const memoryUpdateOutput = await StructureResponse(
+  const memoryUpdateOutput = await Response(
     memoryUpdatePrompt,
     MemoryUpdateSchema,
   );
@@ -155,7 +155,7 @@ async function extractFactsFromMessages(
 ): Promise<RetrievedFact[]> {
   const conversation = formatMessagesForFactExtraction(messages);
   const prompt = getFactRetrievalMessages(conversation);
-  const { facts } = await StructureResponse(prompt, FactRetrievalSchema);
+  const { facts } = await Response(prompt, FactRetrievalSchema);
   return facts;
 }
 
@@ -269,7 +269,7 @@ async function buildDecisionPlan(params: {
   }
 
   const overrideEmbeddings =
-    textsToEmbed.length > 0 ? await Embeddding(textsToEmbed) : [];
+    textsToEmbed.length > 0 ? await Embed(textsToEmbed) : [];
   textsToEmbed.forEach((text, index) => {
     embeddingByText.set(text, overrideEmbeddings[index]);
   });
