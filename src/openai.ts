@@ -8,7 +8,7 @@ import { env } from "./env.js";
 const RESPONSE_MODEL = env.OPENAI_RESPONSE_MODEL ?? "gpt-4.1";
 const EMBEDDING_MODEL = env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
 
-export async function Response<TFormat extends z.ZodTypeAny>(
+export async function Response<TFormat extends z.ZodType>(
   prompt: string,
   format: TFormat,
 ): Promise<z.infer<TFormat>> {

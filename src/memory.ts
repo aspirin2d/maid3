@@ -2,7 +2,7 @@ import { cosineDistance, desc, eq, gt, and, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { db } from "./db/index.js";
 import { memory } from "./db/schema.js";
-import { getPendingUserMessages, markMessagesAsExtracted } from "./message.js";
+import { getMessagesByUser, markMessagesAsExtracted } from "./message.js";
 import { Embed, Response } from "./openai.js";
 import {
   FactRetrievalSchema,
@@ -19,7 +19,7 @@ type MemoryExtractionStats = {
 };
 
 type ConversationMessage = Awaited<
-  ReturnType<typeof getPendingUserMessages>
+  ReturnType<typeof getMessagesByUser>
 >[number];
 
 type RetrievedFact = z.infer<typeof FactRetrievalSchema>["facts"][number];
@@ -72,7 +72,11 @@ export async function extractMemory(
   userId: string,
 ): Promise<MemoryExtractionStats> {
   // Gather the latest user-only messages that still need memory extraction.
-  const pendingMessages = await getPendingUserMessages(userId);
+  const pendingMessages = await getMessagesByUser(userId, {
+    extracted: false,
+    role: "user",
+  });
+
   if (pendingMessages.length === 0) {
     return EMPTY_STATS;
   }
